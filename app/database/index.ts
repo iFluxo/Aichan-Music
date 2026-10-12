@@ -46,20 +46,17 @@ export class AIODatabase {
     constructor(client: Client, connectedLog: boolean = false) {
         this.client = client;
 
-        const postgresOptions = {
-            host: import.meta.env.PostgresHost ?? "localhost",
-            port: import.meta.env.PostgresPort ? Number(import.meta.env.PostgresPort) : 5432,
-            database: import.meta.env.PostgresDatabase,
-            user: import.meta.env.PostgresUsername ?? "postgres",
-            password: import.meta.env.PostgresPassword ?? "",
-            ssl: {
-                rejectUnauthorized: true,
-                ca: import.meta.env.PostgresSslCa?.replace(/\\n/g, "\n"),
-            },
-        };
+        const postgresHost = import.meta.env.PostgresHost ?? "localhost";
+        const postgresPort = import.meta.env.PostgresPort ?? "5432";
+        const postgresDatabase = import.meta.env.PostgresDatabase;
+        const postgresUsername = import.meta.env.PostgresUsername ?? "postgres";
+        const postgresPassword = import.meta.env.PostgresPassword ?? "";
+        const postgresUrl =
+            import.meta.env.PostgresUrl ??
+            `postgres://${encodeURIComponent(postgresUsername)}:${encodeURIComponent(postgresPassword)}@${postgresHost}:${postgresPort}/${postgresDatabase}`;
         const redisUrl = import.meta.env.RedisUrl;
 
-        if (!postgresOptions.database) {
+        if (!postgresDatabase) {
             throw new Error("Missing environment variable: PostgresDatabase");
         }
 
@@ -67,7 +64,13 @@ export class AIODatabase {
             throw new Error("Missing environment variable: RedisUrl");
         }
 
-        this.sql = new Bun.SQL(postgresOptions);
+        this.sql = new Bun.SQL({
+            url: postgresUrl,
+            tls: {
+                rejectUnauthorized: true,
+                ca: import.meta.env.PostgresSslCa?.replace(/\\n/g, "\n"),
+            },
+        });
         this.sql
             .connect()
             .then(() => {
