@@ -1,12 +1,20 @@
-FROM oven/bun:latest
+FROM oven/bun:1-alpine AS deps
 
-RUN mkdir -p /home/bot
 WORKDIR /home/bot
 
-COPY package.json .
+COPY package.json bun.lock* ./
+RUN bun install --production
 
-RUN bun install
+FROM oven/bun:1-alpine
 
-COPY . .
+WORKDIR /home/bot
+
+ENV NODE_ENV=production
+
+COPY --from=deps /home/bot/node_modules ./node_modules
+COPY package.json bun.lock* ./
+COPY tsconfig.json seyfert.config.ts ./
+COPY assets ./assets
+COPY app ./app
 
 CMD ["bun", "start"]

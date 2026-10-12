@@ -1,4 +1,4 @@
-import { Connectors, type LavalinkResponse, type Player, Shoukaku, type ShoukakuOptions, type Track } from "shoukaku";
+import { Connectors, type LavalinkResponse, type NodeOption, type Player, Shoukaku, type ShoukakuOptions, type Track } from "shoukaku";
 import { lavalink } from "#config";
 import type { Client } from "../AichanMusic";
 
@@ -36,18 +36,14 @@ export class MusicManager {
             moveOnDisconnect: false,
         };
 
-        this.shoukaku = new Shoukaku(
-            new Connectors.Seyfert(client),
-            [
-                {
-                    name: lavalink.Name,
-                    url: lavalink.Url,
-                    auth: lavalink.Auth,
-                    secure: lavalink.Secure,
-                },
-            ],
-            options,
-        );
+        const node: NodeOption = {
+            name: lavalink.Name,
+            url: lavalink.Url,
+            auth: lavalink.Auth,
+            secure: lavalink.Secure,
+        };
+
+        this.shoukaku = new Shoukaku(new Connectors.Seyfert(client), [], options);
 
         if (connectedLog) {
             this.shoukaku
@@ -56,9 +52,17 @@ export class MusicManager {
                 .on("close", (name, code, reason) => this.client.logger.warn(`[Lavalink] Node closed (${name}): ${code} ${reason}`))
                 .on("disconnect", (name, count) => this.client.logger.warn(`[Lavalink] Node disconnected (${name}): ${count}`))
                 .on("reconnecting", (name, left, interval) =>
-                    this.client.logger.warn(`[Lavalink] Reconnecting (${name}): ${left} tries left in ${interval}ms`),
+                    this.client.logger.warn(`[Lavalink] Reconnecting (${name}): ${left} tries left in ${interval}s`),
                 );
         }
+
+        this.shoukaku.id = client.botId;
+
+        if (connectedLog) {
+            this.client.logger.info(`[Lavalink] Connecting node "${node.name}" -> ${node.secure ? "wss" : "ws"}://${node.url}`);
+        }
+
+        this.shoukaku.addNode(node);
     }
 
     getQueue(guildId: string): MusicQueue {
