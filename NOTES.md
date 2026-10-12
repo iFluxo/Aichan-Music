@@ -84,22 +84,30 @@ Sudah **bersih** per perbaikan terakhir:
    (`hostname/port/database/username/password`), tabel dibuat otomatis (`CREATE TABLE IF NOT EXISTS`) di `ensureSchema()`,
    kolom JSON pakai `JSONB`. Script `db:*` di `package.json` dihapus.
 5. ✅ **Hapus MongoDB/mongoose** — `mongoose` dihapus, `PingTarget` tinggal `"postgres" | "redis"`, env `MongoUrl` dibuang.
-6. ✅ **Lavalink node tidak pernah konek / tidak ada log** — `Connectors.Seyfert` **hanya menambah node saat event Discord `READY`**
-   (`Connector.ready()`), jadi kalau bot belum online tidak ada log Lavalink sama sekali. Sekarang `MusicManager` menambah node
-   **secara eager** di konstruktor (`shoukaku.id = client.botId` lalu `addNode`), dengan log `[Lavalink] Connecting node ...`
-   yang muncul langsung saat startup. Node tetap tidak dobel saat `READY` tiba (nodes tetap 1).
-7. ✅ **`reconnectInterval` salah satuan** — Shoukaku memakai **detik**, bukan milidetik. Nilai lama `5_000` = ~83 menit
+6. ✅ **Lavalink node tidak pernah konek / tidak ada log (akar masalah sebenarnya)** — plugin sebelumnya mendeklarasikan
+   `client: { music: ... }`. Seyfert mengeksekusi factory plugin `client` **secara eager di konstruktor `BaseClient`**
+   (`installPluginClientMaps` → `value: factory(client)`), sehingga `new MusicManager(...)` berjalan **sebelum** subclass
+   menimpa `client.events` dengan `EventHandler` asli. Akibatnya handler `RAW` milik `Connectors.Seyfert` tertulis ke
+   `CustomEventHandler` sementara lalu hilang, jadi node tidak pernah ditambah saat `READY` dan update voice juga tidak
+   pernah diteruskan. Perbaikan: **hapus `client: { music }`** (tidak dipakai di mana pun; command memakai `ctx.music`).
+   Sekarang `MusicManager` dibuat di `setup()` (EventHandler asli sudah terpasang, token sudah di-set) dan `RAW` bertahan.
+7. ✅ **`TypeError: Header 'User-Id' has invalid value`** — muncul saat node di-`addNode` dengan id bot yang belum valid.
+   Karena `MusicManager` dulu dibuat eager di konstruktor klien, `rest.options.token` masih bernilai sentinel `"INVALID"`,
+   sehingga `client.botId` = `Buffer.from("INVALID", "base64")` = `" U@,\u0000"` (mengandung byte NUL) dan Bun menolak
+   header `User-Id`. Sekarang `MusicManager.connect()` memvalidasi id (`/^\d{17,20}$/`) sebelum `addNode`, memakai
+   `client.me?.id ?? client.botId`, dan menunggu (retry tiap 2 detik) + memberi warning jelas kalau token salah/kosong.
+8. ✅ **`reconnectInterval` salah satuan** — Shoukaku memakai **detik**, bukan milidetik. Nilai lama `5_000` = ~83 menit
    sebelum retry; sekarang `5` (detik). Label log juga diperbaiki (`s`, bukan `ms`).
-8. ✅ **Dockerfile boros & build lambat** — ganti base `oven/bun:latest` (≈181 MB compressed) → `oven/bun:1-alpine`
+9. ✅ **Dockerfile boros & build lambat** — ganti base `oven/bun:latest` (≈181 MB compressed) → `oven/bun:1-alpine`
    (≈91 MB compressed), multi-stage, dan `bun install --production` (devDependencies seperti biome/typescript tidak ikut).
    `bun.lock` di-unignore supaya build deterministik. Terverifikasi: dengan hanya `node_modules` produksi + file yang di-COPY,
    `bun start` berjalan normal.
 
 ### Masih terbuka (opsional, bukan error)
-9. **String bahasa tanpa command** — blok `avatar` dan `chat` ada di `en.ts`/`id.ts` tapi command-nya tidak ada. Entah dihapus (tinggal bersihkan) atau command-nya akan dibuat lagi (konfirmasi dulu).
-10. **`resolveLocale`/`setLocale`** pakai Map in-memory. Guild yang belum pernah menjalankan command akan fallback ke `en` pada cooldown message & messageCreate sampai middleware mengisi Map.
-11. **`AGENTS.md` drift** — menyebut `emoji` (padahal kode `emojis`) dan file `app/plugins/items.ts` yang tidak ada. Perlu disesuaikan.
-12. **`GroqApiKey`** di `.env.example` belum dipakai di kode manapun.
+10. **String bahasa tanpa command** — blok `avatar` dan `chat` ada di `en.ts`/`id.ts` tapi command-nya tidak ada. Entah dihapus (tinggal bersihkan) atau command-nya akan dibuat lagi (konfirmasi dulu).
+11. **`resolveLocale`/`setLocale`** pakai Map in-memory. Guild yang belum pernah menjalankan command akan fallback ke `en` pada cooldown message & messageCreate sampai middleware mengisi Map.
+12. **`AGENTS.md` drift** — menyebut `emoji` (padahal kode `emojis`) dan file `app/plugins/items.ts` yang tidak ada. Perlu disesuaikan.
+13. **`GroqApiKey`** di `.env.example` belum dipakai di kode manapun.
 
 ## 7. Perintah npm/bun
 

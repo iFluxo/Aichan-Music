@@ -18,10 +18,16 @@ export interface MusicQueue {
 
 const LoopOrder: LoopMode[] = ["none", "track", "queue"];
 
+const BotIdPattern = /^\d{17,20}$/;
+
+const ConnectRetryMs = 2_000;
+
 export class MusicManager {
     readonly shoukaku: Shoukaku;
 
     readonly queues = new Map<string, MusicQueue>();
+
+    private readonly node: NodeOption;
 
     constructor(
         private readonly client: Client,
@@ -43,6 +49,8 @@ export class MusicManager {
             secure: lavalink.Secure,
         };
 
+        this.node = node;
+
         this.shoukaku = new Shoukaku(new Connectors.Seyfert(client), [], options);
 
         if (connectedLog) {
@@ -56,13 +64,51 @@ export class MusicManager {
                 );
         }
 
-        this.shoukaku.id = client.botId;
+        this.connect(connectedLog);
+    }
+
+    private connect(connectedLog: boolean): void {
+        const attach = (): boolean => {
+            const botId = this.resolveBotId();
+
+            if (!botId) return false;
+
+            this.shoukaku.id = botId;
+
+            if (connectedLog) {
+                this.client.logger.info(
+                    `[Lavalink] Connecting node "${this.node.name}" -> ${this.node.secure ? "wss" : "ws"}://${this.node.url}`,
+                );
+            }
+
+            this.shoukaku.addNode(this.node);
+
+            return true;
+        };
+
+        if (attach()) return;
 
         if (connectedLog) {
-            this.client.logger.info(`[Lavalink] Connecting node "${node.name}" -> ${node.secure ? "wss" : "ws"}://${node.url}`);
+            this.client.logger.warn("[Lavalink] Waiting for a valid Discord bot id before connecting the node (check your Token).");
         }
 
-        this.shoukaku.addNode(node);
+        const timer = setInterval(() => {
+            if (attach()) clearInterval(timer);
+        }, ConnectRetryMs);
+
+        timer.unref?.();
+    }
+
+    private resolveBotId(): string | null {
+        let candidate = "";
+
+        try {
+            candidate = String(this.client.me?.id ?? this.client.botId ?? "");
+        } catch {
+            return null;
+        }
+
+        return BotIdPattern.test(candidate) ? candidate : null;
     }
 
     getQueue(guildId: string): MusicQueue {
