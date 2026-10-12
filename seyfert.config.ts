@@ -9,5 +9,5 @@ export default config.bot({
         events: "events",
         langs: "languages",
     },
-    intents: ["Guilds", "GuildMessages", "MessageContent"],
+    intents: ["Guilds", "GuildMessages", "MessageContent", "GuildVoiceStates"],
 });

@@ -148,7 +148,14 @@ function convertToSlash(appCommands: RESTGetAPIApplicationCommandsResult | undef
 
 function commandDescription(translate: DefaultLocale, name: string) {
     const entry = translate[name as keyof DefaultLocale];
-    return entry && "description" in entry ? entry.description : "";
+
+    if (entry && typeof entry === "object" && "description" in entry) {
+        return (entry as { description: string }).description;
+    }
+
+    const music = translate.music as Record<string, { description?: string }>;
+
+    return music[name]?.description ?? "";
 }
 
 function msToSecond(ms: number) {

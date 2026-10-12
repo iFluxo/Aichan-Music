@@ -120,6 +120,112 @@ export default {
         },
     },
 
+    music: {
+        play: {
+            description: "Putar lagu atau playlist dari pencarian atau URL.",
+            options: {
+                query: "Nama lagu, URL, atau kata pencarian.",
+            },
+            added: (title: string, position: number) => `\`➕\` **${title}** ditambahkan ke antrean (${position}).`,
+            playlistAdded: (name: string, count: number) => `\`➕\` **${count}** lagu dari **${name}** ditambahkan ke antrean.`,
+            ended: "`⏹️` Antrean selesai, keluar dari voice channel.",
+        },
+        skip: {
+            description: "Lewati lagu yang sedang diputar.",
+            options: {
+                amount: "Berapa lagu yang dilewati.",
+            },
+            skipped: (title: string) => `\`⏭️\` **${title}** dilewati.`,
+        },
+        stop: {
+            description: "Hentikan player dan bersihkan antrean.",
+            stopped: "`⏹️` Player dihentikan dan antrean dibersihkan.",
+        },
+        pause: {
+            description: "Jeda lagu yang sedang diputar.",
+            paused: "`⏸️` Player dijeda.",
+            already: "`❌` Player sudah dijeda.",
+        },
+        resume: {
+            description: "Lanjutkan lagu yang sedang dijeda.",
+            resumed: "`▶️` Player dilanjutkan.",
+            already: "`❌` Player tidak sedang dijeda.",
+        },
+        nowplaying: {
+            description: "Tampilkan lagu yang sedang diputar.",
+            title: "Sedang Diputar",
+            fields: {
+                author: "Artis",
+                duration: "Durasi",
+                position: "Posisi",
+            },
+        },
+        queue: {
+            description: "Tampilkan antrean saat ini.",
+            options: {
+                page: "Halaman antrean.",
+            },
+            title: "Antrean",
+            nowPlaying: "Sedang Diputar",
+            upcoming: "Berikutnya",
+            empty: "`❌` Antrean kosong.",
+            footer: (length: number, page: number, pages: number) => `${length} lagu • Halaman ${page}/${pages}`,
+        },
+        volume: {
+            description: "Atur volume player.",
+            options: {
+                volume: "Persentase volume (0-200).",
+            },
+            set: (volume: number) => `\`🔊\` Volume diatur ke **${volume}%**.`,
+        },
+        loop: {
+            description: "Putar mode loop antrean secara bergantian.",
+            options: {
+                mode: "Mode loop.",
+            },
+            modes: {
+                none: "mati",
+                track: "lagu",
+                queue: "antrean",
+            },
+            set: (mode: string) => `\`🔁\` Mode loop diatur ke **${mode}**.`,
+        },
+        shuffle: {
+            description: "Acak lagu-lagu di antrean.",
+            shuffled: (count: number) => `\`🔀\` **${count}** lagu di antrean diacak.`,
+            notEnough: "`❌` Lagu di antrean tidak cukup untuk diacak.",
+        },
+        remove: {
+            description: "Hapus lagu dari antrean.",
+            options: {
+                position: "Posisi antrean yang akan dihapus.",
+            },
+            removed: (title: string) => `\`🗑️\` **${title}** dihapus dari antrean.`,
+            invalid: "`❌` Posisi antrean tidak valid.",
+        },
+        seek: {
+            description: "Lompat ke posisi tertentu di lagu saat ini.",
+            options: {
+                position: "Posisi dalam detik.",
+            },
+            seeked: (time: string) => `\`⏩\` Melompat ke **${time}**.`,
+            invalid: "`❌` Tidak bisa melompat di lagu ini.",
+        },
+        leave: {
+            description: "Putuskan bot dari voice channel.",
+            left: "`👋` Keluar dari voice channel.",
+        },
+        errors: {
+            noVoice: "`❌` Kamu harus masuk ke voice channel dulu.",
+            notSameChannel: "`❌` Kamu harus berada di voice channel yang sama denganku.",
+            noPlayer: "`❌` Aku sedang tidak memutar apa pun.",
+            noResults: "`❌` Tidak ada hasil untuk pencarian itu.",
+            loadFailed: "`❌` Gagal memuat lagu tersebut.",
+            nodeUnavailable: "`❌` Tidak ada node musik yang tersedia saat ini.",
+            joinFailed: "`❌` Aku tidak bisa masuk ke voice channel kamu.",
+        },
+    },
+
     components: {
         button: "Halo Dunia dari Tombol",
         select: "Halo Dunia dari Menu Pilih",

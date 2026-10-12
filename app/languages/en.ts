@@ -119,13 +119,118 @@ export default {
         },
     },
 
+    music: {
+        play: {
+            description: "Play a track or playlist from a search query or URL.",
+            options: {
+                query: "Song name, URL or search query.",
+            },
+            added: (title: string, position: number) => `\`➕\` Added **${title}** to the queue (${position}).`,
+            playlistAdded: (name: string, count: number) => `\`➕\` Added **${count}** tracks from **${name}** to the queue.`,
+            ended: "`⏹️` The queue has ended, leaving the voice channel.",
+        },
+        skip: {
+            description: "Skip the current track.",
+            options: {
+                amount: "How many tracks to skip.",
+            },
+            skipped: (title: string) => `\`⏭️\` Skipped **${title}**.`,
+        },
+        stop: {
+            description: "Stop the player and clear the queue.",
+            stopped: "`⏹️` Stopped the player and cleared the queue.",
+        },
+        pause: {
+            description: "Pause the current track.",
+            paused: "`⏸️` Paused the player.",
+            already: "`❌` The player is already paused.",
+        },
+        resume: {
+            description: "Resume the current track.",
+            resumed: "`▶️` Resumed the player.",
+            already: "`❌` The player is not paused.",
+        },
+        nowplaying: {
+            description: "Show the currently playing track.",
+            title: "Now Playing",
+            fields: {
+                author: "Author",
+                duration: "Duration",
+                position: "Position",
+            },
+        },
+        queue: {
+            description: "Show the current queue.",
+            options: {
+                page: "Queue page.",
+            },
+            title: "Queue",
+            nowPlaying: "Now Playing",
+            upcoming: "Upcoming",
+            empty: "`❌` The queue is empty.",
+            footer: (length: number, page: number, pages: number) => `${length} tracks • Page ${page}/${pages}`,
+        },
+        volume: {
+            description: "Set the player volume.",
+            options: {
+                volume: "Volume percentage (0-200).",
+            },
+            set: (volume: number) => `\`🔊\` Set the volume to **${volume}%**.`,
+        },
+        loop: {
+            description: "Cycle the loop mode for the queue.",
+            options: {
+                mode: "Loop mode.",
+            },
+            modes: {
+                none: "off",
+                track: "track",
+                queue: "queue",
+            },
+            set: (mode: string) => `\`🔁\` Set the loop mode to **${mode}**.`,
+        },
+        shuffle: {
+            description: "Shuffle the queued tracks.",
+            shuffled: (count: number) => `\`🔀\` Shuffled **${count}** queued tracks.`,
+            notEnough: "`❌` There are not enough queued tracks to shuffle.",
+        },
+        remove: {
+            description: "Remove a track from the queue.",
+            options: {
+                position: "Queue position to remove.",
+            },
+            removed: (title: string) => `\`🗑️\` Removed **${title}** from the queue.`,
+            invalid: "`❌` Invalid queue position.",
+        },
+        seek: {
+            description: "Seek to a position in the current track.",
+            options: {
+                position: "Position in seconds.",
+            },
+            seeked: (time: string) => `\`⏩\` Seeked to **${time}**.`,
+            invalid: "`❌` Cannot seek this track.",
+        },
+        leave: {
+            description: "Disconnect the bot from the voice channel.",
+            left: "`👋` Left the voice channel.",
+        },
+        errors: {
+            noVoice: "`❌` You need to join a voice channel first.",
+            notSameChannel: "`❌` You need to be in the same voice channel as me.",
+            noPlayer: "`❌` I'm not playing anything right now.",
+            noResults: "`❌` No results found for that query.",
+            loadFailed: "`❌` Failed to load that track.",
+            nodeUnavailable: "`❌` No music node is available right now.",
+            joinFailed: "`❌` I couldn't join your voice channel.",
+        },
+    },
+
     components: {
         button: "Hello World from Button",
         select: "Hello World from Select Menu",
         error: "Component error!",
         modalError: "Modal error!",
     },
-
     dev: {
         eval: {
             empty: "`❌` Input code!",

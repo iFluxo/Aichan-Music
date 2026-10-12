@@ -16,6 +16,7 @@ import { Client } from "./AichanMusic";
 import type en from "./languages/en";
 import * as globalMiddlewares from "./middlewares/index";
 import { DatabasePlugin } from "./plugins/database.plugin";
+import { MusicPlugin } from "./plugins/music.plugin";
 import { resolveLocale } from "./plugins/utils.function";
 import { WebhookPlugin } from "./plugins/webhook.plugin";
 
@@ -33,6 +34,7 @@ const plugins = definePlugins(
         parser: { syntax: { namedOptions: ["-", "--"] } },
     }),
     DatabasePlugin(true),
+    MusicPlugin(true),
     WebhookPlugin({
         log: import.meta.env.WebhookLogUrl ?? "",
     }),
