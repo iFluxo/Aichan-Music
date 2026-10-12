@@ -32,7 +32,7 @@ export class MusicManager {
             resumeTimeout: 30,
             resumeByLibrary: true,
             reconnectTries: 3,
-            reconnectInterval: 5_000,
+            reconnectInterval: 5,
             moveOnDisconnect: false,
         };
 
