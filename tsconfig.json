@@ -1,0 +1,39 @@
+{
+    "compilerOptions": {
+        "target": "ESNext",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "types": ["bun", "node"],
+
+        "strict": true,
+        "noImplicitAny": true,
+        "strictNullChecks": true,
+        "strictFunctionTypes": true,
+        "noImplicitThis": true,
+        "noImplicitReturns": true,
+
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+
+        "esModuleInterop": true,
+        "resolveJsonModule": true,
+        "preserveSymlinks": true,
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true,
+
+        "skipLibCheck": true,
+        "noErrorTruncation": true,
+
+        "rootDir": ".",
+        "outDir": "./dist",
+
+        "paths": {
+            "app/*": ["./app/*"],
+            "#utils/function": ["./app/plugins/utils.function.ts"],
+            "#config": ["./app/assets/config.ts"]
+        }
+    },
+
+    "include": ["app/**/*"],
+    "exclude": ["node_modules", "dist"]
+}

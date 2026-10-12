@@ -1,0 +1,46 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. Tambahkan QEMU agar runner Ubuntu x86_64 bisa melakukan emulasi ARM64
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Setup Environment Variables
+        run: |
+          echo "Owner=${RepoOwner,,}" >> $GITHUB_ENV
+          ShortSHA=$(git rev-parse --short=7 HEAD)
+          echo "VersionTag=$ShortSHA" >> $GITHUB_ENV
+        env:
+          RepoOwner: "${{ github.repository_owner }}"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          # 2. Tentukan platform target di sini (misal hanya arm64, atau tambahkan amd64 jika ingin multi-arch)
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/${{ env.Owner }}/dbot:${{ env.VersionTag }}
+            ghcr.io/${{ env.Owner }}/dbot:latest
