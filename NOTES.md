@@ -84,12 +84,22 @@ Sudah **bersih** per perbaikan terakhir:
    (`hostname/port/database/username/password`), tabel dibuat otomatis (`CREATE TABLE IF NOT EXISTS`) di `ensureSchema()`,
    kolom JSON pakai `JSONB`. Script `db:*` di `package.json` dihapus.
 5. ✅ **Hapus MongoDB/mongoose** — `mongoose` dihapus, `PingTarget` tinggal `"postgres" | "redis"`, env `MongoUrl` dibuang.
+6. ✅ **Lavalink node tidak pernah konek / tidak ada log** — `Connectors.Seyfert` **hanya menambah node saat event Discord `READY`**
+   (`Connector.ready()`), jadi kalau bot belum online tidak ada log Lavalink sama sekali. Sekarang `MusicManager` menambah node
+   **secara eager** di konstruktor (`shoukaku.id = client.botId` lalu `addNode`), dengan log `[Lavalink] Connecting node ...`
+   yang muncul langsung saat startup. Node tetap tidak dobel saat `READY` tiba (nodes tetap 1).
+7. ✅ **`reconnectInterval` salah satuan** — Shoukaku memakai **detik**, bukan milidetik. Nilai lama `5_000` = ~83 menit
+   sebelum retry; sekarang `5` (detik). Label log juga diperbaiki (`s`, bukan `ms`).
+8. ✅ **Dockerfile boros & build lambat** — ganti base `oven/bun:latest` (≈181 MB compressed) → `oven/bun:1-alpine`
+   (≈91 MB compressed), multi-stage, dan `bun install --production` (devDependencies seperti biome/typescript tidak ikut).
+   `bun.lock` di-unignore supaya build deterministik. Terverifikasi: dengan hanya `node_modules` produksi + file yang di-COPY,
+   `bun start` berjalan normal.
 
 ### Masih terbuka (opsional, bukan error)
-6. **String bahasa tanpa command** — blok `avatar` dan `chat` ada di `en.ts`/`id.ts` tapi command-nya tidak ada. Entah dihapus (tinggal bersihkan) atau command-nya akan dibuat lagi (konfirmasi dulu).
-7. **`resolveLocale`/`setLocale`** pakai Map in-memory. Guild yang belum pernah menjalankan command akan fallback ke `en` pada cooldown message & messageCreate sampai middleware mengisi Map.
-8. **`AGENTS.md` drift** — menyebut `emoji` (padahal kode `emojis`) dan file `app/plugins/items.ts` yang tidak ada. Perlu disesuaikan.
-9. **`GroqApiKey`** di `.env.example` belum dipakai di kode manapun.
+9. **String bahasa tanpa command** — blok `avatar` dan `chat` ada di `en.ts`/`id.ts` tapi command-nya tidak ada. Entah dihapus (tinggal bersihkan) atau command-nya akan dibuat lagi (konfirmasi dulu).
+10. **`resolveLocale`/`setLocale`** pakai Map in-memory. Guild yang belum pernah menjalankan command akan fallback ke `en` pada cooldown message & messageCreate sampai middleware mengisi Map.
+11. **`AGENTS.md` drift** — menyebut `emoji` (padahal kode `emojis`) dan file `app/plugins/items.ts` yang tidak ada. Perlu disesuaikan.
+12. **`GroqApiKey`** di `.env.example` belum dipakai di kode manapun.
 
 ## 7. Perintah npm/bun
 
