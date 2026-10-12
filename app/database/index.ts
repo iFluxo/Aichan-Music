@@ -1,4 +1,3 @@
-import { SQL } from "bun";
 import { bot, colors } from "#config";
 import type { Client } from "../AichanMusic";
 
@@ -36,7 +35,7 @@ export interface SelectGuild {
 }
 
 export class AIODatabase {
-    protected readonly sql: SQL;
+    protected readonly sql: Bun.SQL;
 
     readonly cache: Bun.RedisClient;
 
@@ -48,11 +47,15 @@ export class AIODatabase {
         this.client = client;
 
         const postgresOptions = {
-            hostname: import.meta.env.PostgresHost ?? "localhost",
+            host: import.meta.env.PostgresHost ?? "localhost",
             port: import.meta.env.PostgresPort ? Number(import.meta.env.PostgresPort) : 5432,
             database: import.meta.env.PostgresDatabase,
-            username: import.meta.env.PostgresUsername ?? "postgres",
+            user: import.meta.env.PostgresUsername ?? "postgres",
             password: import.meta.env.PostgresPassword ?? "",
+            ssl: {
+                rejectUnauthorized: true,
+                ca: import.meta.env.PostgresSslCa?.replace(/\\n/g, "\n"),
+            },
         };
         const redisUrl = import.meta.env.RedisUrl;
 
@@ -64,7 +67,7 @@ export class AIODatabase {
             throw new Error("Missing environment variable: RedisUrl");
         }
 
-        this.sql = new SQL(postgresOptions);
+        this.sql = new Bun.SQL(postgresOptions);
         this.sql
             .connect()
             .then(() => {
