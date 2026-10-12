@@ -1,6 +1,6 @@
 import { type CommandContext, createMiddleware } from "seyfert";
 
-import { setLocale } from "#utils/function";
+import { setLocale } from "#function";
 
 async function getGuildLocale(context: CommandContext, guildId: string): Promise<string> {
     const fallback = context.client.langs.defaultLang ?? "en";
@@ -21,7 +21,7 @@ async function getGuildName(context: CommandContext): Promise<string | undefined
 }
 
 export const commandInterface = createMiddleware<void, CommandContext>(async ({ context, next, stop }) => {
-    if (context.command.props?.onlyForDev && !context.config.config.Developers.includes(context.author.id)) return stop();
+    if (context.command.props?.onlyForDev && !context.config.bot.Developers.includes(context.author.id)) return stop();
 
     if (context.guildId) {
         const locale = await getGuildLocale(context, context.guildId);

@@ -70,7 +70,7 @@ web_modules/
 .env.*
 !.env.example
 
-# local libsql/turso database files
+# local database files
 *.db*
 
 # parcel-bundler cache (https://parceljs.org/)
@@ -145,5 +145,4 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
 
-drizzle/
 bun.lock

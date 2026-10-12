@@ -2,7 +2,7 @@ import { Cooldown } from "@slipher/cooldown";
 import { Command, type CommandContext, createStringOption, Declare, Embed, MessageFlags, Options } from "seyfert";
 
 import { colors } from "#config";
-import { setLocale } from "#utils/function";
+import { setLocale } from "#function";
 
 const languageOptions = {
     locale: createStringOption({

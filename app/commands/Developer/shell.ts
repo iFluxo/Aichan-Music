@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process";
 import { Command, type CommandContext, createStringOption, Declare, Embed, Formatter, MessageFlags, Options } from "seyfert";
 import { DeclareParserConfig, ParserRecommendedConfig, Watch, Yuna } from "yunaforseyfert";
-import { config } from "#config";
+import { bot } from "#config";
 
 const { inspect } = Bun;
 
@@ -18,7 +18,7 @@ const shellOptions = {
     defaultMemberPermissions: ["ManageGuild", "Administrator"],
     integrationTypes: ["GuildInstall"],
     contexts: ["Guild"],
-    guildId: config.DevGuilds,
+    guildId: bot.DevGuilds,
     props: {
         onlyForDev: true,
     },

@@ -12,7 +12,7 @@ import {
 } from "seyfert";
 import { ActivityType, PresenceUpdateStatus } from "seyfert/lib/types";
 import * as config from "#config";
-import { generateCases } from "#utils/function";
+import { generateCases } from "#function";
 
 type PrefixMessage = {
     content: string;
@@ -30,8 +30,8 @@ const clientOptions = {
     commands: {
         prefix: async (message: PrefixMessage) => {
             const guildId = message.guildId;
-            const clientConfig = (message.client as { config?: { config?: { CommandPrefixs: string[] } } }).config;
-            let CommandPrefixs: string[] = clientConfig?.config?.CommandPrefixs ?? [];
+            const clientConfig = (message.client as { config?: { bot?: { CommandPrefixs: string[] } } }).config;
+            let CommandPrefixs: string[] = clientConfig?.bot?.CommandPrefixs ?? [];
             const meMention = (message.client as { me?: { toString(): string } | null }).me?.toString() ?? CommandPrefixs[0];
             const meUsername = (message.client as { username?: string | null }).username?.toLowerCase() ?? CommandPrefixs[0];
 

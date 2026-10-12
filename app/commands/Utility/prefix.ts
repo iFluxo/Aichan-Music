@@ -1,7 +1,7 @@
 import { Cooldown } from "@slipher/cooldown";
 import { Command, type CommandContext, createStringOption, Declare, Embed, MessageFlags, Options } from "seyfert";
 
-import { colors, config } from "#config";
+import { bot, colors } from "#config";
 
 const prefixOptions = {
     prefixs: createStringOption({
@@ -49,7 +49,7 @@ export default class PrefixCommand extends Command {
         }
 
         if (input.toLowerCase() === "default" || input.toLowerCase() === "reset") {
-            const reseted = await ctx.db.setPrefix(guildId, config.CommandPrefixs);
+            const reseted = await ctx.db.setPrefix(guildId, bot.CommandPrefixs);
 
             return await ctx.editOrReply({
                 embeds: [
@@ -70,7 +70,7 @@ export default class PrefixCommand extends Command {
             });
         }
 
-        const updated = await ctx.db.setPrefix(guildId, [...new Set([...config.CommandPrefixs, ...extra])]);
+        const updated = await ctx.db.setPrefix(guildId, [...new Set([...bot.CommandPrefixs, ...extra])]);
 
         await ctx.editOrReply({
             embeds: [

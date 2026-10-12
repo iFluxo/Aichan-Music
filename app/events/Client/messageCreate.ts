@@ -1,6 +1,6 @@
 import { createEvent, MessageFlags } from "seyfert";
 
-import { buildCommandsList } from "../../commands/General/help";
+import { buildCommandsList } from "../../commands/Utility/help";
 
 export default createEvent({
     data: {

@@ -12,12 +12,12 @@ import {
 } from "seyfert";
 import { Yuna } from "yunaforseyfert";
 import type * as config from "#config";
+import { Client } from "./AichanMusic";
 import type en from "./languages/en";
 import * as globalMiddlewares from "./middlewares/index";
 import { DatabasePlugin } from "./plugins/database.plugin";
 import { resolveLocale } from "./plugins/utils.function";
 import { WebhookPlugin } from "./plugins/webhook.plugin";
-import { Client } from "./structures/Client";
 
 function cooldownMessage(result: CooldownResult, context: AnyContext): string {
     const guildId = (context as { guildId?: string | null }).guildId;

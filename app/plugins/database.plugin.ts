@@ -1,5 +1,5 @@
+import type { Client } from "app/AichanMusic";
 import { AIODatabase } from "app/database/index";
-import type { Client } from "app/structures/Client";
 import { createPlugin } from "seyfert";
 
 export function DatabasePlugin(connectedLog: boolean = false) {

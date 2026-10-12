@@ -11,7 +11,7 @@ import {
 } from "seyfert";
 import { DeclareParserConfig, ParserRecommendedConfig, Watch, Yuna } from "yunaforseyfert";
 
-import { config } from "#config";
+import { bot } from "#config";
 
 const { inspect } = Bun;
 
@@ -32,7 +32,7 @@ const evalOptions = {
     defaultMemberPermissions: ["ManageGuild", "Administrator"],
     integrationTypes: ["GuildInstall"],
     contexts: ["Guild"],
-    guildId: config.DevGuilds,
+    guildId: bot.DevGuilds,
     props: {
         onlyForDev: true,
     },

@@ -29,11 +29,11 @@
 
         "paths": {
             "app/*": ["./app/*"],
-            "#utils/function": ["./app/plugins/utils.function.ts"],
-            "#config": ["./app/assets/config.ts"]
+            "#function": ["./app/plugins/utils.function.ts"],
+            "#config": ["./assets/config.ts"]
         }
     },
 
-    "include": ["app/**/*"],
+    "include": ["app/**/*", "assets/*", "scripts/*"],
     "exclude": ["node_modules", "dist"]
 }

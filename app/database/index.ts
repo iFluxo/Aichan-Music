@@ -1,20 +1,13 @@
-import { eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/tursodatabase-sync";
-import mongoose from "mongoose";
-import { colors, config } from "#config";
-import type { Client } from "../structures/Client";
-
-import { CustomTable, GuildTable, type SelectCustom, type SelectGuild } from "./drizzle.schema";
+import { SQL } from "bun";
+import { bot, colors } from "#config";
+import type { Client } from "../AichanMusic";
 
 export enum CacheKeys {
     Custom = "custom",
     Guild = "guild",
-    Color = "guild:color",
-    Locale = "guild:locale",
-    Prefixs = "guild:prefixs",
 }
 
-export type PingTarget = "drizzle" | "mongodb" | "redis";
+export type PingTarget = "postgres" | "redis";
 
 export interface PingResult {
     target: PingTarget;
@@ -24,47 +17,60 @@ export interface PingResult {
     connected: boolean;
 }
 
+export type CustomValue = string | number | boolean | object | unknown[] | null;
+
+export interface SelectCustom {
+    id: string;
+
+    data: CustomValue;
+}
+
+export interface SelectGuild {
+    id: string;
+
+    color: number | null;
+
+    locale: string | null;
+
+    prefixs: string[] | null;
+}
+
 export class AIODatabase {
-    protected readonly drizzle: ReturnType<typeof drizzle>;
+    protected readonly sql: SQL;
+
     readonly cache: Bun.RedisClient;
 
-    readonly mongo = mongoose;
-
     protected readonly client: Client;
+
+    private schemaReady = false;
 
     constructor(client: Client, connectedLog: boolean = false) {
         this.client = client;
 
-        const tursoPath = Bun.env.TursoPath ?? "local.db";
-        const tursoUrl = Bun.env.TursoUrl;
-        const tursoAuthToken = Bun.env.TursoAuthToken;
-        const redisUrl = Bun.env.RedisUrl;
-        const mongoUrl = Bun.env.MongoUrl;
+        const postgresOptions = {
+            hostname: import.meta.env.PostgresHost ?? "localhost",
+            port: import.meta.env.PostgresPort ? Number(import.meta.env.PostgresPort) : 5432,
+            database: import.meta.env.PostgresDatabase,
+            username: import.meta.env.PostgresUsername ?? "postgres",
+            password: import.meta.env.PostgresPassword ?? "",
+        };
+        const redisUrl = import.meta.env.RedisUrl;
 
-        if (!tursoUrl) {
-            throw new Error("Missing environment variable: TursoUrl");
-        }
-
-        if (!tursoAuthToken) {
-            throw new Error("Missing environment variable: TursoAuthToken");
+        if (!postgresOptions.database) {
+            throw new Error("Missing environment variable: PostgresDatabase");
         }
 
         if (!redisUrl) {
             throw new Error("Missing environment variable: RedisUrl");
         }
 
-        if (!mongoUrl) {
-            throw new Error("Missing environment variable: MongoUrl");
-        }
-
-        this.drizzle = drizzle({
-            connection: {
-                path: tursoPath,
-                url: tursoUrl,
-                authToken: tursoAuthToken,
-            },
-        });
-        if (connectedLog) this.client.logger.info("[Database: Turso] Connected");
+        this.sql = new SQL(postgresOptions);
+        this.sql
+            .connect()
+            .then(() => {
+                if (connectedLog) this.client.logger.info("[Database: Postgres] Connected");
+            })
+            .catch((error) => this.client.logger.error("[Database: Postgres] Connection error:", error));
 
         this.cache = new Bun.RedisClient(redisUrl);
         this.cache
@@ -73,13 +79,46 @@ export class AIODatabase {
                 if (connectedLog) this.client.logger.info("[Database: Redis] Connected");
             })
             .catch((error) => this.client.logger.info("[Database: Redis] Connection error:", error));
+    }
 
-        mongoose
-            .connect(mongoUrl)
-            .then(() => {
-                if (connectedLog) this.client.logger.info("[Database: MongoDB] Connected");
-            })
-            .catch((error) => this.client.logger.error("[Database: MongoDB] Connection error:", error));
+    private async ensureSchema(): Promise<void> {
+        if (this.schemaReady) {
+            return;
+        }
+
+        await this.sql`
+            CREATE TABLE IF NOT EXISTS custom (
+                id TEXT PRIMARY KEY,
+                data JSONB
+            )
+        `;
+
+        await this.sql`
+            CREATE TABLE IF NOT EXISTS guild (
+                id TEXT PRIMARY KEY,
+                color INTEGER,
+                locale TEXT,
+                prefixs JSONB
+            )
+        `;
+
+        this.schemaReady = true;
+    }
+
+    private parseJson<T>(value: unknown): T | null {
+        if (value === null || value === undefined) {
+            return null;
+        }
+
+        if (typeof value === "string") {
+            try {
+                return JSON.parse(value) as T;
+            } catch {
+                return value as T;
+            }
+        }
+
+        return value as T;
     }
 
     private getCacheKey(namespace: CacheKeys, id: string): string {
@@ -113,30 +152,18 @@ export class AIODatabase {
         await this.cache.del(key);
     }
 
-    public async ping(target: PingTarget = "drizzle"): Promise<PingResult> {
+    public async ping(target: PingTarget = "postgres"): Promise<PingResult> {
         const start = performance.now();
 
         try {
             switch (target) {
-                case "mongodb": {
-                    if (mongoose.connection.readyState !== 1) {
-                        throw new Error("MongoDB is not connected");
-                    }
-
-                    await mongoose.connection.db?.command({
-                        ping: 1,
-                    });
-
-                    break;
-                }
-
                 case "redis": {
                     await this.cache.ping();
                     break;
                 }
 
-                case "drizzle": {
-                    await this.drizzle.select().from(CustomTable).where(eq(CustomTable.id, "ping-test"));
+                case "postgres": {
+                    await this.sql`SELECT 1`;
 
                     break;
                 }
@@ -161,26 +188,39 @@ export class AIODatabase {
     }
 
     public async getCustoms(): Promise<SelectCustom[]> {
-        return this.drizzle.select().from(CustomTable);
+        await this.ensureSchema();
+
+        const rows = await this.sql<{ id: string; data: unknown }[]>`SELECT id, data FROM custom`;
+
+        return rows.map((row) => ({
+            id: row.id,
+            data: this.parseJson<CustomValue>(row.data),
+        }));
     }
 
     public async getGuilds(): Promise<SelectGuild[]> {
-        return this.drizzle.select().from(GuildTable);
+        await this.ensureSchema();
+
+        const rows = await this.sql<
+            { id: string; color: number | null; locale: string | null; prefixs: unknown }[]
+        >`SELECT id, color, locale, prefixs FROM guild`;
+
+        return rows.map((row) => ({
+            id: row.id,
+            color: row.color ?? null,
+            locale: row.locale ?? null,
+            prefixs: this.parseJson<string[]>(row.prefixs) ?? null,
+        }));
     }
 
     private async upsertCustom(id: SelectCustom["id"], data: SelectCustom["data"]): Promise<void> {
-        await this.drizzle
-            .insert(CustomTable)
-            .values({
-                id,
-                data,
-            })
-            .onConflictDoUpdate({
-                target: CustomTable.id,
-                set: {
-                    data,
-                },
-            });
+        await this.ensureSchema();
+
+        await this.sql`
+            INSERT INTO custom (id, data)
+            VALUES (${id}, ${JSON.stringify(data)}::jsonb)
+            ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data
+        `;
     }
 
     public async addCustom(id: SelectCustom["id"], data: SelectCustom["data"]): Promise<SelectCustom["data"]> {
@@ -222,15 +262,19 @@ export class AIODatabase {
             return cached;
         }
 
-        const [row] = await this.drizzle.select().from(CustomTable).where(eq(CustomTable.id, id));
+        await this.ensureSchema();
+
+        const [row] = await this.sql<{ data: unknown }[]>`SELECT data FROM custom WHERE id = ${id}`;
 
         if (!row) {
             return null;
         }
 
-        await this.setCache(CacheKeys.Custom, id, row.data);
+        const data = this.parseJson<SelectCustom["data"]>(row.data);
 
-        return row.data;
+        await this.setCache(CacheKeys.Custom, id, data);
+
+        return data;
     }
 
     public async setCustom(id: SelectCustom["id"], data: SelectCustom["data"]): Promise<SelectCustom["data"]> {
@@ -242,24 +286,11 @@ export class AIODatabase {
     }
 
     public async deleteCustom(id: SelectCustom["id"]): Promise<void> {
-        await this.drizzle.delete(CustomTable).where(eq(CustomTable.id, id));
+        await this.ensureSchema();
+
+        await this.sql`DELETE FROM custom WHERE id = ${id}`;
 
         await this.deleteCache(CacheKeys.Custom, id);
-    }
-
-    private async upsertGuild(id: SelectGuild["id"], data: Partial<Omit<SelectGuild, "id">>): Promise<void> {
-        await this.drizzle
-            .insert(GuildTable)
-            .values({
-                id,
-                ...data,
-            })
-            .onConflictDoUpdate({
-                target: GuildTable.id,
-                set: {
-                    ...data,
-                },
-            });
     }
 
     public async getGuildById(id: SelectGuild["id"]): Promise<SelectGuild | null> {
@@ -269,15 +300,26 @@ export class AIODatabase {
             return cached;
         }
 
-        const [row] = await this.drizzle.select().from(GuildTable).where(eq(GuildTable.id, id));
+        await this.ensureSchema();
+
+        const [row] = await this.sql<{ id: string; color: number | null; locale: string | null; prefixs: unknown }[]>`
+                SELECT id, color, locale, prefixs FROM guild WHERE id = ${id}
+            `;
 
         if (!row) {
             return null;
         }
 
-        await this.setCache(CacheKeys.Guild, id, row);
+        const guild: SelectGuild = {
+            id: row.id,
+            color: row.color ?? null,
+            locale: row.locale ?? null,
+            prefixs: this.parseJson<string[]>(row.prefixs) ?? null,
+        };
 
-        return row;
+        await this.setCache(CacheKeys.Guild, id, guild);
+
+        return guild;
     }
 
     public async getColor(id: SelectGuild["id"]): Promise<number> {
@@ -289,74 +331,62 @@ export class AIODatabase {
     public async getLocale(id: SelectGuild["id"]): Promise<string> {
         const guild = await this.getGuildById(id);
 
-        return guild?.locale ?? config.Locale;
+        return guild?.locale ?? bot.Locale;
     }
 
     public async getPrefix(id: SelectGuild["id"]): Promise<string[]> {
         const guild = await this.getGuildById(id);
 
-        return guild?.prefixs ?? config.CommandPrefixs;
+        return guild?.prefixs ?? bot.CommandPrefixs;
     }
 
-    public async setColor(id: SelectGuild["id"], color: SelectGuild["color"]): Promise<number> {
-        await this.upsertGuild(id, {
-            color,
-        });
+    public async setColor(id: SelectGuild["id"], color: number): Promise<number> {
+        await this.ensureSchema();
 
-        const guild = await this.getGuildById(id);
+        await this.sql`
+            INSERT INTO guild (id, color)
+            VALUES (${id}, ${color})
+            ON CONFLICT (id) DO UPDATE SET color = EXCLUDED.color
+        `;
 
-        await this.setCache(CacheKeys.Guild, id, {
-            ...(guild ?? { id }),
-            color,
-        });
-
-        await this.setCache(CacheKeys.Color, id, color);
+        await this.deleteCache(CacheKeys.Guild, id);
 
         return color;
     }
 
-    public async setLocale(id: SelectGuild["id"], locale: SelectGuild["locale"]): Promise<string> {
-        await this.upsertGuild(id, {
-            locale,
-        });
+    public async setLocale(id: SelectGuild["id"], locale: string): Promise<string> {
+        await this.ensureSchema();
 
-        const guild = await this.getGuildById(id);
+        await this.sql`
+            INSERT INTO guild (id, locale)
+            VALUES (${id}, ${locale})
+            ON CONFLICT (id) DO UPDATE SET locale = EXCLUDED.locale
+        `;
 
-        await this.setCache(CacheKeys.Guild, id, {
-            ...(guild ?? { id }),
-            locale,
-        });
-
-        await this.setCache(CacheKeys.Locale, id, locale);
+        await this.deleteCache(CacheKeys.Guild, id);
 
         return locale;
     }
 
-    public async setPrefix(id: SelectGuild["id"], prefixs: SelectGuild["prefixs"]): Promise<string[]> {
-        await this.upsertGuild(id, {
-            prefixs,
-        });
+    public async setPrefix(id: SelectGuild["id"], prefixs: string[]): Promise<string[]> {
+        await this.ensureSchema();
 
-        const guild = await this.getGuildById(id);
+        await this.sql`
+            INSERT INTO guild (id, prefixs)
+            VALUES (${id}, ${JSON.stringify(prefixs)}::jsonb)
+            ON CONFLICT (id) DO UPDATE SET prefixs = EXCLUDED.prefixs
+        `;
 
-        await this.setCache(CacheKeys.Guild, id, {
-            ...(guild ?? { id }),
-            prefixs,
-        });
-
-        await this.setCache(CacheKeys.Prefixs, id, prefixs);
+        await this.deleteCache(CacheKeys.Guild, id);
 
         return prefixs;
     }
 
     public async deleteGuild(id: SelectGuild["id"]): Promise<void> {
-        await this.drizzle.delete(GuildTable).where(eq(GuildTable.id, id));
+        await this.ensureSchema();
 
-        await Promise.all([
-            this.deleteCache(CacheKeys.Guild, id),
-            this.deleteCache(CacheKeys.Color, id),
-            this.deleteCache(CacheKeys.Locale, id),
-            this.deleteCache(CacheKeys.Prefixs, id),
-        ]);
+        await this.sql`DELETE FROM guild WHERE id = ${id}`;
+
+        await this.deleteCache(CacheKeys.Guild, id);
     }
 }

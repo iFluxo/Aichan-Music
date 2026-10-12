@@ -1,6 +1,6 @@
 {
-    "name": "Discord-Bot-Template",
-    "description": "Using TypeScript 7, Bun & Seyfert",
+    "name": "AichanMusic",
+    "description": "Meloowwwdy...",
     "version": "0.0.1",
     "main": "app/index.ts",
     "type": "module",
@@ -8,28 +8,21 @@
         "biome:format": "bunx @biomejs/biome format --write",
         "biome:lint": "bunx @biomejs/biome lint --write",
         "biome:check": "bunx @biomejs/biome check --write",
-        "db:generate": "bunx drizzle-kit generate",
-        "db:migrate": "bunx drizzle-kit migrate",
-        "db:push": "bunx drizzle-kit push",
-        "db:studio": "bunx drizzle-kit studio",
         "start": "bun app/index.ts",
         "ts:build": "bunx tsc",
         "ts:check": "bunx tsc --noEmit",
         "ts:dev": "bunx tsc -w"
     },
     "dependencies": {
-        "@tursodatabase/sync": "next",
         "@slipher/cooldown": "^1.0.0",
-        "drizzle-orm": "rc",
-        "mongoose": "^9.10.4",
         "seyfert": "^5.1.0",
+        "shoukaku": "^4.3.0",
         "yunaforseyfert": "^1.2.4"
     },
     "devDependencies": {
         "@biomejs/biome": "^2",
         "@types/bun": "^1",
         "@types/node": "^26",
-        "drizzle-kit": "rc",
-        "typescript": "^7"
+        "typescript": "5"
     }
 }
