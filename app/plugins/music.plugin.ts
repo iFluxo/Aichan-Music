@@ -12,7 +12,6 @@ export function MusicPlugin(connectedLog: boolean = false) {
             music: (_interaction, client) => getMusic(client as Client),
         },
         setup(client) {
-            getMusic(client as Client);
             client.logger.info(`[${this.name}-Plugin] loaded`);
         },
     });
