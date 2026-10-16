@@ -38,6 +38,7 @@ interface YtDlpInfo {
     thumbnails?: { url?: string }[];
     webpage_url?: string;
     url?: string;
+    http_headers?: Record<string, string>;
     entries?: YtDlpInfo[];
 }
 
@@ -206,6 +207,10 @@ function runYtDlp(extraArgs: string[], target: string): Promise<YtDlpInfo> {
 export class YoutubeExtractor extends ExtractorPlugin {
     private readonly streams = new Map<string, StreamEntry>();
 
+    constructor(private readonly onHttpHeaders?: (headers: Record<string, string>) => void) {
+        super();
+    }
+
     async validate(url: string): Promise<boolean> {
         return parseYoutubeUrl(url) !== null;
     }
@@ -219,6 +224,7 @@ export class YoutubeExtractor extends ExtractorPlugin {
                 ["--flat-playlist", "--yes-playlist", "--playlist-end", String(YoutubeMaxPlaylistSize)],
                 `https://www.youtube.com/playlist?list=${parsed.id}`,
             );
+            this.captureHeaders(info);
 
             const songs = (info.entries ?? []).filter((entry) => Boolean(entry.id)).map((entry) => this.buildSong(entry, options));
 
@@ -238,6 +244,7 @@ export class YoutubeExtractor extends ExtractorPlugin {
         }
 
         const info = await runYtDlp(["--no-playlist", "-f", YoutubeAudioFormat], `https://www.youtube.com/watch?v=${parsed.id}`);
+        this.captureHeaders(info);
         this.rememberStream(info);
 
         return this.buildSong(info, options);
@@ -249,6 +256,7 @@ export class YoutubeExtractor extends ExtractorPlugin {
 
         if (!info?.id) return null;
 
+        this.captureHeaders(info);
         this.rememberStream(info);
 
         return this.buildSong(info, options);
@@ -261,6 +269,7 @@ export class YoutubeExtractor extends ExtractorPlugin {
         if (!song.url) throw new SonariaError("NoStreamUrl", song.id);
 
         const info = await runYtDlp(["--no-playlist", "-f", YoutubeAudioFormat], song.url);
+        this.captureHeaders(info);
         const streamUrl = info.url;
 
         if (!streamUrl) throw new SonariaError("NoStreamUrl", song.id);
@@ -272,6 +281,13 @@ export class YoutubeExtractor extends ExtractorPlugin {
 
     getRelatedSongs(): Song[] {
         return [];
+    }
+
+    private captureHeaders(info: YtDlpInfo | undefined): void {
+        const headers = info?.http_headers;
+        if (!headers || !this.onHttpHeaders) return;
+
+        this.onHttpHeaders(headers);
     }
 
     private buildSong<T>(info: YtDlpInfo, options: ResolveOptions<T>): Song<T> {

@@ -11,13 +11,15 @@ export class MusicService {
     readonly sonaria: Sonaria;
 
     private readonly ffmpegLog: string[] = [];
+    private readonly queues = new Map<string, Queue>();
+    private ffmpegInput: Record<string, string> = {};
 
     constructor(
         private readonly client: Client,
         private readonly connectedLog: boolean = false,
     ) {
         this.sonaria = new Sonaria(client, {
-            plugins: [new YoutubeExtractor()],
+            plugins: [new YoutubeExtractor((headers) => this.applyHttpHeaders(headers))],
             emitAddSongWhenCreatingQueue: false,
             emitAddListWhenCreatingQueue: false,
             ffmpeg: {
@@ -30,11 +32,20 @@ export class MusicService {
         });
 
         this.sonaria
+            .on(Events.InitQueue, (queue) => {
+                this.queues.set(queue.id, queue);
+                if (Object.keys(this.ffmpegInput).length) {
+                    queue.ffmpegArgs.input = { ...queue.ffmpegArgs.input, ...this.ffmpegInput };
+                }
+            })
             .on(Events.PlaySong, (queue, song) => void this.onPlaySong(queue, song))
             .on(Events.AddSong, (queue, song) => void this.onAddSong(queue, song))
             .on(Events.AddList, (queue, playlist) => void this.onAddList(queue, playlist))
             .on(Events.Finish, (queue) => void this.onFinish(queue))
-            .on(Events.DeleteQueue, (queue) => this.onDeleteQueue(queue))
+            .on(Events.DeleteQueue, (queue) => {
+                this.queues.delete(queue.id);
+                this.onDeleteQueue(queue);
+            })
             .on(Events.Error, (error, queue) => void this.onError(error, queue))
             .on(Events.FfmpegDebug, (message) => {
                 this.ffmpegLog.push(message);
@@ -53,6 +64,27 @@ export class MusicService {
 
     private translate(guildId: string) {
         return this.client.t(resolveLocale(guildId)).get();
+    }
+
+    private applyHttpHeaders(headers: Record<string, string>): void {
+        const input: Record<string, string> = {};
+
+        for (const [key, value] of Object.entries(headers)) {
+            if (/^user-agent$/i.test(key)) input.user_agent = value;
+        }
+
+        const extra = Object.entries(headers)
+            .filter(([key]) => !/^user-agent$/i.test(key))
+            .map(([key, value]) => `${key}: ${value}`)
+            .join("\r\n");
+
+        if (extra) input.headers = extra;
+
+        this.ffmpegInput = { ...this.ffmpegInput, ...input };
+
+        for (const queue of this.queues.values()) {
+            queue.ffmpegArgs.input = { ...queue.ffmpegArgs.input, ...this.ffmpegInput };
+        }
     }
 
     private async write(queue: Queue, body: MessageCreateBodyRequest): Promise<void> {
