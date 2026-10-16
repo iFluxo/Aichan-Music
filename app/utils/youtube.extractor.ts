@@ -1,27 +1,35 @@
 import { spawn } from "node:child_process";
 import { ExtractorPlugin, Playlist, type ResolveOptions, SonariaError, Song } from "sonaria";
 
-const { YtDlpPath, YtDlpCookies } = import.meta.env;
+const { YtDlpPath, YtDlpCookies, YtDlpExtractorArgs, YtDlpPoToken } = import.meta.env;
 
 const YoutubeExecutable = YtDlpPath ?? "yt-dlp";
 const YoutubeCookies = YtDlpCookies ?? "";
+const YoutubeExtractorArgs = YtDlpExtractorArgs ?? "";
+const YoutubePoToken = YtDlpPoToken ?? "";
 const YoutubeSource = "youtube";
-const YoutubeStreamFormat = "bestaudio/best";
-const YoutubeTimeoutMs = 20_000;
-const YoutubeUrlPattern =
-    /(?:https?:\/\/)?(?:www\.|m\.|music\.)?(?:youtube\.com\/(?:watch\?(?:[^#]*&)?v=|shorts\/|live\/|embed\/|playlist\?list=)|youtu\.be\/)[\w-]+/i;
+const YoutubeAudioFormat = "bestaudio[acodec=opus]/bestaudio/best";
+const YoutubeTimeoutMs = 30_000;
+const YoutubeMaxPlaylistSize = 100;
+const YoutubeDefaultStreamTtlMs = 3_600_000;
+const YoutubeStreamSafetyMs = 1_800_000;
+const YoutubeVideoIdPattern = /^[\w-]{11}$/;
+const YoutubeHosts = new Set(["youtube.com", "youtu.be", "youtube-nocookie.com"]);
 
 interface YtDlpInfo {
     id?: string;
     title?: string;
+    fulltitle?: string;
     duration?: number;
     is_live?: boolean;
+    live_status?: string;
     age_limit?: number;
     uploader?: string;
     channel?: string;
     uploader_url?: string;
     channel_url?: string;
     view_count?: number;
+    like_count?: number;
     thumbnail?: string;
     thumbnails?: { url?: string }[];
     webpage_url?: string;
@@ -29,24 +37,104 @@ interface YtDlpInfo {
     entries?: YtDlpInfo[];
 }
 
-function cookiesArgs(): string[] {
-    return YoutubeCookies ? ["--cookies", YoutubeCookies] : [];
+interface ParsedYoutubeUrl {
+    type: "video" | "playlist";
+    id: string;
 }
 
-function runYtDlp(args: string[]): Promise<string> {
+interface StreamEntry {
+    url: string;
+    expiresAt: number;
+}
+
+function javascriptRuntimeArgs(): string[] {
+    const execPath = process.execPath;
+    if (!execPath) return [];
+
+    const versions = process.versions as Record<string, string | undefined>;
+
+    return ["--js-runtimes", `${versions.bun ? "bun" : "node"}:${execPath}`];
+}
+
+function baseArgs(): string[] {
+    const args = [
+        "--ignore-config",
+        "--no-warnings",
+        "--no-progress",
+        "--no-check-certificates",
+        "--socket-timeout",
+        "10",
+        "--retries",
+        "2",
+        ...javascriptRuntimeArgs(),
+    ];
+
+    if (YoutubeCookies) args.push("--cookies", YoutubeCookies);
+    if (YoutubePoToken) args.push("--extractor-args", `youtube:po_token=web.gvs+${YoutubePoToken};player_client=web,default`);
+    if (YoutubeExtractorArgs) args.push("--extractor-args", YoutubeExtractorArgs);
+
+    return args;
+}
+
+function normalizeHost(host: string): string {
+    return host.replace(/^(?:www|m|music)\./, "");
+}
+
+function parseYoutubeUrl(input: string): ParsedYoutubeUrl | null {
+    let url: URL;
+    try {
+        url = new URL(input);
+    } catch {
+        return null;
+    }
+
+    const host = url.hostname.toLowerCase();
+    if (!YoutubeHosts.has(normalizeHost(host))) return null;
+
+    const list = url.searchParams.get("list");
+    let videoId = url.searchParams.get("v");
+    if (host.endsWith("youtu.be")) videoId = url.pathname.slice(1).split("/")[0] ?? null;
+
+    const pathMatch = /^\/(?:shorts|live|embed|v)\/([\w-]{11})/.exec(url.pathname);
+    if (pathMatch) videoId = pathMatch[1];
+
+    const isVideo = Boolean(videoId && YoutubeVideoIdPattern.test(videoId));
+    const isMix = Boolean(list?.startsWith("RD"));
+
+    if (list && /^[\w-]+$/.test(list) && !(isMix && isVideo)) return { type: "playlist", id: list };
+    if (isVideo && videoId) return { type: "video", id: videoId };
+
+    return null;
+}
+
+function runYtDlp(extraArgs: string[], target: string): Promise<YtDlpInfo> {
+    const args = [...baseArgs(), ...extraArgs, "--dump-single-json", "--", target];
+
     return new Promise((resolve, reject) => {
         const child = spawn(YoutubeExecutable, args, { stdio: ["ignore", "pipe", "pipe"] });
 
         let stdout = "";
         let stderr = "";
         let settled = false;
+        let timer: ReturnType<typeof setTimeout> | undefined;
 
-        const timer = setTimeout(() => {
+        const finish = (error: Error | null, value?: YtDlpInfo) => {
             if (settled) return;
 
             settled = true;
+            if (timer) clearTimeout(timer);
+
+            if (error) {
+                reject(error);
+                return;
+            }
+
+            resolve(value as YtDlpInfo);
+        };
+
+        timer = setTimeout(() => {
             child.kill("SIGKILL");
-            reject(new Error("yt-dlp timed out"));
+            finish(new Error("yt-dlp timed out"));
         }, YoutubeTimeoutMs);
 
         timer.unref?.();
@@ -63,77 +151,87 @@ function runYtDlp(args: string[]): Promise<string> {
         });
 
         child.on("error", (error) => {
-            if (settled) return;
-
-            settled = true;
-            clearTimeout(timer);
-            reject(error);
+            finish(error);
         });
 
         child.on("close", (code) => {
-            if (settled) return;
-
-            settled = true;
-            clearTimeout(timer);
-
-            if (code === 0) {
-                resolve(stdout);
+            if (code !== 0) {
+                finish(new Error(stderr.trim() || `yt-dlp exited with code ${code ?? "unknown"}`));
                 return;
             }
 
-            reject(new Error(stderr.trim() || `yt-dlp exited with code ${code ?? "unknown"}`));
+            try {
+                finish(null, JSON.parse(stdout) as YtDlpInfo);
+            } catch {
+                finish(new Error("yt-dlp returned invalid JSON"));
+            }
         });
     });
 }
 
 export class YoutubeExtractor extends ExtractorPlugin {
+    private readonly streams = new Map<string, StreamEntry>();
+
     async validate(url: string): Promise<boolean> {
-        return YoutubeUrlPattern.test(url);
+        return parseYoutubeUrl(url) !== null;
     }
 
     async resolve<T>(url: string, options: ResolveOptions<T>): Promise<Song<T> | Playlist<T>> {
-        if (this.isPlaylist(url)) {
-            const playlist = await this.dumpPlaylist(url);
-            const songs = (playlist.entries ?? []).filter((entry) => Boolean(entry.id)).map((entry) => this.buildSong(entry, options));
+        const parsed = parseYoutubeUrl(url);
+        if (!parsed) throw new SonariaError("NotSupportedUrl");
 
-            if (!songs.length) throw new SonariaError("NoResult", url);
+        if (parsed.type === "playlist") {
+            const info = await runYtDlp(
+                ["--flat-playlist", "--yes-playlist", "--playlist-end", String(YoutubeMaxPlaylistSize)],
+                `https://www.youtube.com/playlist?list=${parsed.id}`,
+            );
+
+            const songs = (info.entries ?? []).filter((entry) => Boolean(entry.id)).map((entry) => this.buildSong(entry, options));
+
+            if (!songs.length) throw new SonariaError("EmptyPlaylist");
 
             return new Playlist<T>(
                 {
                     source: YoutubeSource,
                     songs,
-                    id: playlist.id,
-                    name: playlist.title,
-                    url: playlist.webpage_url ?? url,
-                    thumbnail: this.pickThumbnail(playlist),
+                    id: parsed.id,
+                    name: info.title ?? "YouTube playlist",
+                    url: `https://www.youtube.com/playlist?list=${parsed.id}`,
+                    thumbnail: songs[0].thumbnail,
                 },
                 options,
             );
         }
 
-        const info = await this.dumpVideo(url);
+        const info = await runYtDlp(["--no-playlist", "-f", YoutubeAudioFormat], `https://www.youtube.com/watch?v=${parsed.id}`);
+        this.rememberStream(info);
 
         return this.buildSong(info, options);
     }
 
     async searchSong<T>(query: string, options: ResolveOptions<T>): Promise<Song<T> | null> {
-        try {
-            const info = await this.dumpVideo(`ytsearch1:${query}`);
+        const result = await runYtDlp(["-f", YoutubeAudioFormat], `ytsearch1:${query}`);
+        const info = result.entries ? result.entries.find((entry) => Boolean(entry.id)) : result;
 
-            return this.buildSong(info, options);
-        } catch {
-            return null;
-        }
+        if (!info?.id) return null;
+
+        this.rememberStream(info);
+
+        return this.buildSong(info, options);
     }
 
     async getStreamURL<T>(song: Song<T>): Promise<string> {
-        const url = song.url;
+        const cached = this.streams.get(song.id);
+        if (cached && cached.expiresAt > Date.now()) return cached.url;
 
-        if (!url) throw new SonariaError("CannotGetStreamUrl", song.id);
+        if (!song.url) throw new SonariaError("NoStreamUrl", song.id);
 
-        const streamUrl = await this.dumpStreamUrl(url);
+        const info = await runYtDlp(["--no-playlist", "-f", YoutubeAudioFormat], song.url);
+        const streamUrl = info.url;
 
         if (!streamUrl) throw new SonariaError("NoStreamUrl", song.id);
+
+        this.streams.set(song.id, { url: streamUrl, expiresAt: Date.now() + this.streamTtl(streamUrl) });
 
         return streamUrl;
     }
@@ -142,84 +240,50 @@ export class YoutubeExtractor extends ExtractorPlugin {
         return [];
     }
 
-    private isPlaylist(url: string): boolean {
-        return /[?&]list=/.test(url) && !/[?&](?:v|videoId)=/.test(url) && !/youtu\.be\//i.test(url);
-    }
-
     private buildSong<T>(info: YtDlpInfo, options: ResolveOptions<T>): Song<T> {
         const id = info.id ?? "";
-        const url = info.webpage_url ?? (id ? `https://www.youtube.com/watch?v=${id}` : info.url);
+        const isLive = info.is_live === true || info.live_status === "is_live";
 
         return new Song<T>(
             {
+                plugin: this,
                 source: YoutubeSource,
+                playFromSource: true,
                 id,
-                name: info.title ?? "Unknown",
-                url,
-                isLive: info.is_live === true,
-                duration: typeof info.duration === "number" ? Math.round(info.duration) : 0,
-                thumbnail: this.pickThumbnail(info),
+                name: info.title ?? info.fulltitle ?? id,
+                url: YoutubeVideoIdPattern.test(id) ? `https://www.youtube.com/watch?v=${id}` : (info.webpage_url ?? info.url),
+                isLive,
+                duration: isLive ? 0 : Math.round(info.duration ?? 0),
+                thumbnail: info.thumbnail ?? info.thumbnails?.at(-1)?.url,
                 views: typeof info.view_count === "number" ? info.view_count : undefined,
+                likes: typeof info.like_count === "number" ? info.like_count : undefined,
                 uploader: {
                     name: info.uploader ?? info.channel,
                     url: info.uploader_url ?? info.channel_url,
                 },
                 ageRestricted: typeof info.age_limit === "number" ? info.age_limit >= 18 : undefined,
-                playFromSource: true,
-                plugin: this,
             },
             options,
         );
     }
 
-    private pickThumbnail(info: YtDlpInfo): string | undefined {
-        return info.thumbnail ?? info.thumbnails?.[0]?.url;
+    private rememberStream(info: YtDlpInfo): void {
+        const streamUrl = info.url;
+        const id = info.id;
+
+        if (!streamUrl || !id || info.entries) return;
+
+        this.streams.set(id, { url: streamUrl, expiresAt: Date.now() + this.streamTtl(streamUrl) });
     }
 
-    private async dumpVideo(target: string): Promise<YtDlpInfo> {
-        const output = await runYtDlp([
-            "--dump-single-json",
-            "--no-playlist",
-            "--no-warnings",
-            "--skip-download",
-            ...cookiesArgs(),
-            target,
-        ]);
+    private streamTtl(url: string): number {
+        const match = /[?&]expire=(\d+)/.exec(url);
+        const expire = match ? Number(match[1]) : 0;
 
-        return JSON.parse(output) as YtDlpInfo;
-    }
+        if (expire > 0) {
+            return Math.max(60_000, Math.min(YoutubeDefaultStreamTtlMs, expire * 1000 - Date.now() - YoutubeStreamSafetyMs));
+        }
 
-    private async dumpPlaylist(url: string): Promise<YtDlpInfo> {
-        const output = await runYtDlp([
-            "--dump-single-json",
-            "--yes-playlist",
-            "--flat-playlist",
-            "--no-warnings",
-            "--skip-download",
-            ...cookiesArgs(),
-            url,
-        ]);
-
-        return JSON.parse(output) as YtDlpInfo;
-    }
-
-    private async dumpStreamUrl(url: string): Promise<string> {
-        const output = await runYtDlp([
-            "--no-playlist",
-            "--no-warnings",
-            "--skip-download",
-            "--get-url",
-            "-f",
-            YoutubeStreamFormat,
-            ...cookiesArgs(),
-            url,
-        ]);
-
-        return (
-            output
-                .split(/\r?\n/)
-                .find((line) => line.startsWith("http"))
-                ?.trim() ?? ""
-        );
+        return YoutubeDefaultStreamTtlMs;
     }
 }

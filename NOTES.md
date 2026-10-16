@@ -125,11 +125,12 @@ Sudah **bersih** per perbaikan terakhir:
 14. ✅ **Ganti total Shoukaku/Lavalink dengan `sonaria`** — `shoukaku` dihapus dari dependency, config `lavalink` di
     `assets/config.ts` dan env `Lavalink*` di `.env.example` dibuang. Musik kini memakai library **`sonaria`** (voice
     native + FFmpeg) dengan extractor YouTube berbasis binary **`yt-dlp`** (`app/utils/youtube.extractor.ts`,
-    env opsional `YtDlpPath`/`YtDlpCookies`). Semua 13 command di `app/commands/Music/` di-porting ke API `Queue` Sonaria
-    (`play/jump/shuffle/setRepeatMode/seek/setVolume/stop` + `queue.voice.leave()`).
+    env opsional `YtDlpPath`/`YtDlpCookies`/`YtDlpExtractorArgs`/`YtDlpPoToken`). Semua 13 command di `app/commands/Music/`
+    di-porting ke API `Queue` Sonaria (`play/jump/shuffle/setRepeatMode/seek/setVolume/stop` + `queue.voice.leave()`).
 15. ✅ **Struktur disamakan dengan `/app/Aichan`** — helper dipindah ke `app/utils/` (`function.ts`, `logger.ts`),
     `music.manager.ts`/`music.utils.ts` lama dihapus dan digantikan `music.service.ts`/`music.utils.ts`, `MusicPlugin`
-    hanya mengekspos `ctx.music` (instance `Sonaria` dibuat saat `setup()`), dan export config `emojis` → `emoji`.
+    hanya mengekspos `ctx.music` (instance `Sonaria` dibuat **lazy** saat `ctx.music` pertama diakses, bukan di `setup()`),
+    dan export config `emojis` → `emoji`.
     Bot keluar dari voice channel lewat listener `DeleteQueue` (menutup semua jalur: selesai natural, error, `stop`, disconnect eksternal).
 16. ✅ **Dockerfile** — base diganti `oven/bun:1-debian` supaya FFmpeg + binary standalone `yt-dlp` bisa berjalan
     (Alpine/musl tidak bisa menjalankan binary PyInstaller yt-dlp). FFmpeg dan yt-dlp di-install saat build
@@ -137,6 +138,16 @@ Sudah **bersih** per perbaikan terakhir:
 17. ⚠️ **Catatan**: eksekusi audio belum diuji end-to-end di environment analisa (tidak ada FFmpeg/yt-dlp/Docker).
     Verifikasi yang tersedia: `tsc` bersih, `biome` bersih, dan smoke-test pemuatan 13 command + logika `validate`/error
     extractor. Saat deploy, pastikan IP server tidak diblokir YouTube (umum terjadi di datacenter).
+18. ✅ **Inisialisasi `Sonaria` dibuat lazy** — `MusicPlugin.setup()` sebelumnya langsung membuat `MusicService`/`Sonaria`,
+    padahal `client.gateway` baru dibuat *setelah* `setupPlugins()` di dalam `Client.start()`. Akibatnya `isClientInstance`
+    Sonaria menolak client (`Expected 'Client' for 'client'`). Instance sekarang dibuat saat `ctx.music` pertama diakses
+    (yaitu saat command berjalan, gateway sudah siap).
+19. ✅ **Setelan `yt-dlp` disamakan dengan referensi** (`umutxyp/MusicBot`) — argumen dasar kini `--ignore-config
+    --no-warnings --no-progress --no-check-certificates --socket-timeout 10 --retries 2 --js-runtimes <bun|node>:${process.execPath}`.
+    `--js-runtimes` wajib agar yt-dlp bisa menyelesaikan tantangan nsig/EJS YouTube. Format audio
+    `bestaudio[acodec=opus]/bestaudio/best`, metadata + stream URL diambil dalam satu panggilan `--dump-single-json`
+    (single video/search) lalu stream URL di-cache sampai kedaluwarsa (`expire`). Playlist memakai `--flat-playlist
+    --playlist-end 100`.
 
 ## 7. Perintah npm/bun
 
@@ -148,10 +159,12 @@ bun run biome:check
 
 ## 8. Environment (.env)
 
-`Token, PostgresHost, PostgresPort, PostgresDatabase, PostgresUsername, PostgresPassword, RedisUrl, ConfigLocale, ConfigPrefixs, ConfigDevs, ConfigGuilds, YtDlpPath, YtDlpCookies, WebhookLogUrl`
+`Token, PostgresHost, PostgresPort, PostgresDatabase, PostgresUsername, PostgresPassword, RedisUrl, ConfigLocale, ConfigPrefixs, ConfigDevs, ConfigGuilds, YtDlpPath, YtDlpCookies, YtDlpExtractorArgs, YtDlpPoToken, WebhookLogUrl`
 
 - Postgres: `PostgresHost` (default `localhost`), `PostgresPort` (default `5432`), `PostgresUsername` (default `postgres`),
   `PostgresPassword` (default kosong); hanya `PostgresDatabase` yang wajib diisi. Koneksi dibuat via options object `Bun.SQL`
   (bukan `PostgresUrl`).
-- Musik: `YtDlpPath` (path binary `yt-dlp`, default `yt-dlp` dari PATH) dan `YtDlpCookies` (path file cookies, opsional).
+- Musik: `YtDlpPath` (path binary `yt-dlp`, default `yt-dlp` dari PATH), `YtDlpCookies` (path file cookies, opsional),
+  `YtDlpExtractorArgs` (argumen `--extractor-args` tambahan, opsional), dan `YtDlpPoToken` (PO token YouTube untuk
+  `player_client=web,default`, opsional). Ketika login/bot-check YouTube mengganggu, isi `YtDlpCookies`.
 - Env `Lavalink*` sudah dihapus (tidak dipakai lagi). `GroqApiKey` hanya ada di catatan lama, tidak ada di `.env.example`.
