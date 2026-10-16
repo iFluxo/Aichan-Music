@@ -1,8 +1,7 @@
 import { spawn } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Readable } from "node:stream";
 import { ExtractorPlugin, Playlist, type ResolveOptions, SonariaError, Song } from "sonaria";
 
 const { YtDlpPath, YtDlpCookies, YtDlpExtractorArgs, YtDlpPoToken } = import.meta.env;
@@ -19,6 +18,11 @@ const YoutubeMaxPlaylistSize = 100;
 const YoutubeVideoIdPattern = /^[\w-]{11}$/;
 const YoutubeStreamPath = "/stream/";
 const YoutubeStreamContentType = "application/octet-stream";
+const YoutubeInfoSafetyMs = 1_800_000;
+const YoutubeInfoDefaultTtlMs = 1_800_000;
+const YoutubeInfoMaxEntries = 100;
+const YoutubePrefetchMaxEntries = 6;
+const YoutubePrefetchMaxConcurrent = 2;
 const YoutubeHosts = new Set(["youtube.com", "youtu.be", "youtube-nocookie.com"]);
 
 interface YtDlpInfo {
@@ -127,8 +131,17 @@ function parseYoutubeUrl(input: string): ParsedYoutubeUrl | null {
     return null;
 }
 
+function summarizeStderr(stderr: string): string {
+    return stderr
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .slice(-3)
+        .join(" | ");
+}
+
 function runYtDlp(extraArgs: string[], target: string): Promise<YtDlpInfo> {
-    const args = [...baseArgs(), ...extraArgs, "--dump-single-json", "--", target];
+    const args = [...baseArgs(), ...extraArgs, "-J", "--", target];
 
     return new Promise((resolve, reject) => {
         const child = spawn(YoutubeExecutable, args, { stdio: ["ignore", "pipe", "pipe"] });
@@ -178,9 +191,8 @@ function runYtDlp(extraArgs: string[], target: string): Promise<YtDlpInfo> {
         child.on("close", (code) => {
             if (code !== 0) {
                 const message = stderr.trim() || `yt-dlp exited with code ${code ?? "unknown"}`;
-                const reason = summarizeStderr(message);
 
-                console.error(`[yt-dlp] failed (${target}): ${reason}`);
+                console.error(`[yt-dlp] failed (${target}): ${summarizeStderr(message)}`);
                 finish(new Error(message));
                 return;
             }
@@ -194,13 +206,177 @@ function runYtDlp(extraArgs: string[], target: string): Promise<YtDlpInfo> {
     });
 }
 
-function summarizeStderr(stderr: string): string {
-    return stderr
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .slice(-3)
-        .join(" | ");
+interface InfoFile {
+    path: string;
+    expiresAt: number;
+}
+
+interface PrefetchEntry {
+    chunks: Uint8Array[];
+    done: boolean;
+    child?: ReturnType<typeof spawn>;
+    waiters: Set<() => void>;
+}
+
+const infoFiles = new Map<string, InfoFile>();
+const prefetches = new Map<string, PrefetchEntry>();
+
+function removeInfoFile(path: string): void {
+    try {
+        unlinkSync(path);
+    } catch {
+        return;
+    }
+}
+
+function infoTtl(url: string): number {
+    const match = /[?&]expire=(\d+)/.exec(url);
+    const expire = match ? Number(match[1]) : 0;
+
+    if (expire > 0) return Math.max(0, expire * 1000 - Date.now() - YoutubeInfoSafetyMs);
+
+    return YoutubeInfoDefaultTtlMs;
+}
+
+function infoFileFor(id: string): string | undefined {
+    const entry = infoFiles.get(id);
+    if (!entry) return undefined;
+
+    if (entry.expiresAt > Date.now()) return entry.path;
+
+    infoFiles.delete(id);
+    removeInfoFile(entry.path);
+
+    return undefined;
+}
+
+function downloadArgs(id: string, infoPath?: string): string[] {
+    return infoPath
+        ? ["-J", infoPath, "-f", YoutubeAudioFormat, "-o", "-"]
+        : ["--no-playlist", "-f", YoutubeAudioFormat, "-o", "-", "--", `https://www.youtube.com/watch?v=${id}`];
+}
+
+function wakePrefetch(entry: PrefetchEntry): void {
+    const waiters = [...entry.waiters];
+    entry.waiters.clear();
+    for (const waiter of waiters) waiter();
+}
+
+function prefetchInProgress(): number {
+    let count = 0;
+    for (const entry of prefetches.values()) if (!entry.done) count += 1;
+
+    return count;
+}
+
+function evictPrefetches(): void {
+    while (prefetches.size > YoutubePrefetchMaxEntries) {
+        let removed = false;
+
+        for (const [id, entry] of prefetches) {
+            if (!entry.done) continue;
+
+            prefetches.delete(id);
+            removed = true;
+            break;
+        }
+
+        if (!removed) break;
+    }
+}
+
+function startPrefetch(id: string): PrefetchEntry {
+    const existing = prefetches.get(id);
+    if (existing) return existing;
+
+    const entry: PrefetchEntry = { chunks: [], done: false, waiters: new Set() };
+    prefetches.set(id, entry);
+
+    evictPrefetches();
+
+    let stderr = "";
+    let bytes = 0;
+
+    const attempt = (useInfo: boolean) => {
+        const infoPath = useInfo ? infoFileFor(id) : undefined;
+        const child = spawn(YoutubeExecutable, [...baseArgs(), ...downloadArgs(id, infoPath)], { stdio: ["ignore", "pipe", "pipe"] });
+        entry.child = child;
+        stderr = "";
+
+        child.stdout?.on("data", (chunk: Buffer) => {
+            entry.chunks.push(new Uint8Array(chunk));
+            bytes += chunk.length;
+            wakePrefetch(entry);
+        });
+
+        child.stderr?.setEncoding("utf8");
+        child.stderr?.on("data", (chunk: string) => {
+            stderr += chunk;
+        });
+
+        const finish = (code: number | null) => {
+            if (code !== 0 && bytes === 0) {
+                if (infoPath) {
+                    infoFiles.delete(id);
+                    removeInfoFile(infoPath);
+                    attempt(false);
+                    return;
+                }
+
+                if (stderr.trim()) console.error(`[yt-dlp] stream failed (${id}): ${summarizeStderr(stderr)}`);
+            }
+
+            entry.done = true;
+            wakePrefetch(entry);
+        };
+
+        child.on("error", () => finish(1));
+        child.on("close", (code) => finish(code));
+    };
+
+    attempt(true);
+
+    return entry;
+}
+
+function prefetch(id: string): void {
+    if (prefetches.has(id)) return;
+    if (prefetchInProgress() >= YoutubePrefetchMaxConcurrent) return;
+
+    startPrefetch(id);
+}
+
+function prefetchStream(entry: PrefetchEntry, signal: AbortSignal): ReadableStream<Uint8Array> {
+    let index = 0;
+    let cancelled = false;
+
+    return new ReadableStream<Uint8Array>({
+        async pull(controller) {
+            while (!cancelled && !signal.aborted) {
+                if (index < entry.chunks.length) {
+                    controller.enqueue(entry.chunks[index]);
+                    index += 1;
+                    return;
+                }
+
+                if (entry.done) break;
+
+                await new Promise<void>((resolve) => entry.waiters.add(resolve));
+            }
+
+            if (cancelled) return;
+
+            try {
+                controller.close();
+            } catch {
+                return;
+            }
+        },
+        cancel() {
+            cancelled = true;
+            wakePrefetch(entry);
+        },
+    });
 }
 
 let streamServer: ReturnType<typeof Bun.serve> | undefined;
@@ -219,30 +395,7 @@ function streamUrlFor(id: string): string {
                 if (request.method === "HEAD")
                     return new Response(null, { status: 200, headers: { "content-type": YoutubeStreamContentType } });
 
-                const child = spawn(
-                    YoutubeExecutable,
-                    [...baseArgs(), "--no-playlist", "-f", YoutubeAudioFormat, "-o", "-", "--", `https://www.youtube.com/watch?v=${id}`],
-                    { stdio: ["ignore", "pipe", "pipe"] },
-                );
-
-                let stderr = "";
-
-                child.stderr?.setEncoding("utf8");
-                child.stderr?.on("data", (chunk: string) => {
-                    stderr += chunk;
-                });
-                child.on("close", (code) => {
-                    if (code !== 0 && stderr.trim()) console.error(`[yt-dlp] stream failed (${id}): ${summarizeStderr(stderr)}`);
-                });
-
-                if (!child.stdout) {
-                    child.kill("SIGKILL");
-                    return new Response("Stream error", { status: 500 });
-                }
-
-                request.signal.addEventListener("abort", () => child.kill("SIGKILL"));
-
-                return new Response(Readable.toWeb(child.stdout) as unknown as ReadableStream, {
+                return new Response(prefetchStream(startPrefetch(id), request.signal), {
                     headers: { "content-type": YoutubeStreamContentType, "cache-control": "no-store" },
                 });
             },
@@ -252,6 +405,34 @@ function streamUrlFor(id: string): string {
     }
 
     return `http://127.0.0.1:${streamServerPort}${YoutubeStreamPath}${id}`;
+}
+
+function rememberInfo(info: YtDlpInfo): void {
+    const id = info.id;
+
+    if (!id || !YoutubeVideoIdPattern.test(id) || info.entries || !info.url) return;
+
+    const path = join(tmpdir(), `aichan-yt-${id}.json`);
+
+    try {
+        writeFileSync(path, JSON.stringify(info), { mode: 0o600 });
+    } catch {
+        return;
+    }
+
+    infoFiles.delete(id);
+    infoFiles.set(id, { path, expiresAt: Date.now() + infoTtl(info.url) });
+
+    while (infoFiles.size > YoutubeInfoMaxEntries) {
+        const oldest = infoFiles.keys().next().value;
+        if (oldest === undefined) break;
+
+        const entry = infoFiles.get(oldest);
+        infoFiles.delete(oldest);
+        if (entry) removeInfoFile(entry.path);
+    }
+
+    prefetch(id);
 }
 
 export class YoutubeExtractor extends ExtractorPlugin {
@@ -288,6 +469,8 @@ export class YoutubeExtractor extends ExtractorPlugin {
 
         const info = await runYtDlp(["--no-playlist", "-f", YoutubeAudioFormat], `https://www.youtube.com/watch?v=${parsed.id}`);
 
+        rememberInfo(info);
+
         return this.buildSong(info, options);
     }
 
@@ -296,6 +479,8 @@ export class YoutubeExtractor extends ExtractorPlugin {
         const info = result.entries ? result.entries.find((entry) => Boolean(entry.id)) : result;
 
         if (!info?.id) return null;
+
+        rememberInfo(info);
 
         return this.buildSong(info, options);
     }

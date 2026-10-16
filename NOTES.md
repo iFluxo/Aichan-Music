@@ -153,6 +153,14 @@ Sudah **bersih** per perbaikan terakhir:
     fetch media dilakukan oleh yt-dlp (yang extraction-nya sudah lolos), cookies/header/IP-family ikut terpakai.
     `reconnect`/`reconnect_streamed` dimatikan pada input FFmpeg (lihat `MusicService`) karena EOF dari stream lokal
     akan memicu reconnect tanpa henti.
+21. ✅ **Hilangkan ekstraksi ganda + prefetch (atasi delay)** — sebelumnya `yt-dlp` dieksekusi dua kali (sekali untuk
+    metadata saat `/play`, sekali lagi saat playback mulai), sehingga audio baru berbunyi ~8-12 detik. Sekarang
+    metadata disimpan ke file temp (`--dump-single-json`) dan playback memakai `yt-dlp --load-info-json <file> -f ... -o -`
+    (tanpa ekstraksi ulang). Server stream juga otomatis **prefetch** unduhan di latar belakang sejak metadata didapat,
+    menyangga stdout yt-dlp di memori (maks 2 unduhan paralel, maks 6 entri selesai) lalu menyajikannya ke FFmpeg — jadi
+    saat bot selesai connect voice, data sudah siap dan audio mulai dalam ~0,1 detik. Kalau `--load-info-json` gagal
+    (mis. URL/expire ditolak), otomatis diulang dengan ekstraksi penuh. Ekstraksi metadata itu sendiri (~5-6 detik)
+    adalah batas `yt-dlp` dan tidak bisa dihilangkan tanpa resolver persisten seperti Lavalink.
 
 ## 7. Perintah npm/bun
 
