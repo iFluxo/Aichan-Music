@@ -164,7 +164,8 @@ bun run biome:check
 - Postgres: `PostgresHost` (default `localhost`), `PostgresPort` (default `5432`), `PostgresUsername` (default `postgres`),
   `PostgresPassword` (default kosong); hanya `PostgresDatabase` yang wajib diisi. Koneksi dibuat via options object `Bun.SQL`
   (bukan `PostgresUrl`).
-- Musik: `YtDlpPath` (path binary `yt-dlp`, default `yt-dlp` dari PATH), `YtDlpCookies` (path file cookies, opsional),
+- Musik: `YtDlpPath` (path binary `yt-dlp`, default `yt-dlp` dari PATH), `YtDlpCookies` (opsional: path file cookies, atau
+  langsung isi file format Netscape — otomatis ditulis ke temp file),
   `YtDlpExtractorArgs` (argumen `--extractor-args` tambahan, opsional), dan `YtDlpPoToken` (PO token YouTube untuk
   `player_client=web,default`, opsional). Ketika login/bot-check YouTube mengganggu, isi `YtDlpCookies`.
 - Env `Lavalink*` sudah dihapus (tidak dipakai lagi). `GroqApiKey` hanya ada di catatan lama, tidak ada di `.env.example`.

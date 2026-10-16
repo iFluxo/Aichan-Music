@@ -1,10 +1,14 @@
 import { spawn } from "node:child_process";
+import { writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { ExtractorPlugin, Playlist, type ResolveOptions, SonariaError, Song } from "sonaria";
 
 const { YtDlpPath, YtDlpCookies, YtDlpExtractorArgs, YtDlpPoToken } = import.meta.env;
 
 const YoutubeExecutable = YtDlpPath ?? "yt-dlp";
 const YoutubeCookies = YtDlpCookies ?? "";
+const YoutubeCookiesFile = join(tmpdir(), "YTCookies.txt");
 const YoutubeExtractorArgs = YtDlpExtractorArgs ?? "";
 const YoutubePoToken = YtDlpPoToken ?? "";
 const YoutubeSource = "youtube";
@@ -56,6 +60,25 @@ function javascriptRuntimeArgs(): string[] {
     return ["--js-runtimes", `${versions.bun ? "bun" : "node"}:${execPath}`];
 }
 
+let cookiesWritten = false;
+
+function cookiesPath(): string | undefined {
+    if (!YoutubeCookies) return undefined;
+
+    if (!YoutubeCookies.includes("\n") && !YoutubeCookies.includes("\t")) return YoutubeCookies;
+
+    if (!cookiesWritten) {
+        try {
+            writeFileSync(YoutubeCookiesFile, YoutubeCookies, { mode: 0o600 });
+            cookiesWritten = true;
+        } catch {
+            return undefined;
+        }
+    }
+
+    return YoutubeCookiesFile;
+}
+
 function baseArgs(): string[] {
     const args = [
         "--ignore-config",
@@ -69,7 +92,8 @@ function baseArgs(): string[] {
         ...javascriptRuntimeArgs(),
     ];
 
-    if (YoutubeCookies) args.push("--cookies", YoutubeCookies);
+    const cookies = cookiesPath();
+    if (cookies) args.push("--cookies", cookies);
     if (YoutubePoToken) args.push("--extractor-args", `youtube:po_token=web.gvs+${YoutubePoToken};player_client=web,default`);
     if (YoutubeExtractorArgs) args.push("--extractor-args", YoutubeExtractorArgs);
 
