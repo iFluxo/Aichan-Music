@@ -25,7 +25,7 @@ RUN apt-get update \
     && apt-get purge -y --auto-remove curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=deps /home/bot/node_modules ./node_modules
+COPY --from=deps /AichanMusic/node_modules ./node_modules
 COPY package.json bun.lock* ./
 COPY tsconfig.json seyfert.config.ts ./
 COPY assets ./assets
