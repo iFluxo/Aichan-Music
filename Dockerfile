@@ -17,8 +17,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl ffmpeg \
     && case "$TARGETARCH" in \
         arm64) YtDlpAsset="yt-dlp_linux_aarch64" ;; \
-        arm) YtDlpAsset="yt-dlp_linux_armv7l" ;; \
-        *) YtDlpAsset="yt-dlp" ;; \
+        *) YtDlpAsset="yt-dlp_linux" ;; \
     esac \
     && curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/latest/download/${YtDlpAsset}" -o /usr/local/bin/yt-dlp \
     && chmod a+rx /usr/local/bin/yt-dlp \
