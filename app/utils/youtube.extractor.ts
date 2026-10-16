@@ -151,12 +151,22 @@ function runYtDlp(extraArgs: string[], target: string): Promise<YtDlpInfo> {
         });
 
         child.on("error", (error) => {
+            console.error(`[yt-dlp] spawn failed for '${YoutubeExecutable}': ${error.message}`);
             finish(error);
         });
 
         child.on("close", (code) => {
             if (code !== 0) {
-                finish(new Error(stderr.trim() || `yt-dlp exited with code ${code ?? "unknown"}`));
+                const message = stderr.trim() || `yt-dlp exited with code ${code ?? "unknown"}`;
+                const reason = message
+                    .split(/\r?\n/)
+                    .map((line) => line.trim())
+                    .filter(Boolean)
+                    .slice(-3)
+                    .join(" | ");
+
+                console.error(`[yt-dlp] failed (${target}): ${reason}`);
+                finish(new Error(message));
                 return;
             }
 

@@ -48,7 +48,10 @@ export class MusicService {
     }
 
     private async write(queue: Queue, body: MessageCreateBodyRequest): Promise<void> {
-        if (!queue.textChannel) return;
+        if (!queue.textChannel) {
+            this.client.logger.warn(`[Music] No text channel bound to queue in guild ${queue.id}; skipping message`);
+            return;
+        }
 
         try {
             await queue.textChannel.messages.write(body);
@@ -86,10 +89,8 @@ export class MusicService {
     }
 
     private async onError(error: Error, queue: Queue): Promise<void> {
-        this.client.logger.error(`[Music] Playback error in guild ${queue.id}:`, error);
+        this.client.logger.error(`[Music] Playback error in guild ${queue.id}: ${error.name}: ${error.message}`);
 
-        if (queue.songs.length === 0) {
-            await this.write(queue, { content: this.translate(queue.id).music.errors.loadFailed });
-        }
+        await this.write(queue, { content: this.translate(queue.id).music.errors.loadFailed });
     }
 }

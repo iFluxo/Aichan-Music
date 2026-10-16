@@ -40,7 +40,8 @@ export default class PlayCommand extends Command {
 
         await ctx.deferReply(true);
 
-        const textChannel = ctx.channel("cache");
+        const cachedChannel = ctx.channel("cache");
+        const textChannel = isTextChannelInstance(cachedChannel) ? cachedChannel : await ctx.channel().catch(() => undefined);
 
         try {
             await ctx.music.sonaria.play(voiceChannel, ctx.options.query, {
@@ -55,6 +56,8 @@ export default class PlayCommand extends Command {
                 else if (JoinErrors.has(error.errorCode)) content = translate.music.errors.joinFailed;
                 else if (error.errorCode === "NonNsfw") content = translate.music.errors.nsfw;
             }
+
+            ctx.client.logger.error(`[Music] play failed (${error instanceof SonariaError ? error.errorCode : "unknown"}):`, error);
 
             await ctx.editOrReply({ content, flags: MessageFlags.Ephemeral });
             return;
