@@ -145,9 +145,14 @@ Sudah **bersih** per perbaikan terakhir:
 19. ✅ **Setelan `yt-dlp` disamakan dengan referensi** (`umutxyp/MusicBot`) — argumen dasar kini `--ignore-config
     --no-warnings --no-progress --no-check-certificates --socket-timeout 10 --retries 2 --js-runtimes <bun|node>:${process.execPath}`.
     `--js-runtimes` wajib agar yt-dlp bisa menyelesaikan tantangan nsig/EJS YouTube. Format audio
-    `bestaudio[acodec=opus]/bestaudio/best`, metadata + stream URL diambil dalam satu panggilan `--dump-single-json`
-    (single video/search) lalu stream URL di-cache sampai kedaluwarsa (`expire`). Playlist memakai `--flat-playlist
-    --playlist-end 100`.
+    `bestaudio[acodec=opus]/bestaudio/best`, metadata diambil lewat `--dump-single-json` (single video/search).
+    Playlist memakai `--flat-playlist --playlist-end 100`.
+20. ✅ **Stream diproksikan lewat yt-dlp** — URL `googlevideo` langsung sering ditolak `403 Forbidden` saat di-fetch
+    FFmpeg (mis. di Railway). `getStreamURL` sekarang mengembalikan `http://127.0.0.1:<port>/stream/<videoId>`
+    (server Bun lokal), lalu server itu menjalankan `yt-dlp -o -` dan menyambungkan stdout-nya ke FFmpeg. Karena
+    fetch media dilakukan oleh yt-dlp (yang extraction-nya sudah lolos), cookies/header/IP-family ikut terpakai.
+    `reconnect`/`reconnect_streamed` dimatikan pada input FFmpeg (lihat `MusicService`) karena EOF dari stream lokal
+    akan memicu reconnect tanpa henti.
 
 ## 7. Perintah npm/bun
 
