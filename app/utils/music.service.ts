@@ -10,6 +10,8 @@ const UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 
 export class MusicService {
     readonly sonaria: Sonaria;
 
+    private readonly ffmpegLog: string[] = [];
+
     constructor(
         private readonly client: Client,
         private readonly connectedLog: boolean = false,
@@ -34,6 +36,12 @@ export class MusicService {
             .on(Events.Finish, (queue) => void this.onFinish(queue))
             .on(Events.DeleteQueue, (queue) => this.onDeleteQueue(queue))
             .on(Events.Error, (error, queue) => void this.onError(error, queue))
+            .on(Events.FfmpegDebug, (message) => {
+                this.ffmpegLog.push(message);
+                if (this.ffmpegLog.length > 30) this.ffmpegLog.shift();
+
+                this.client.logger.debug(`[ffmpeg] ${message}`);
+            })
             .on(Events.Debug, (message) => {
                 if (this.connectedLog) this.client.logger.debug(`[Sonaria] ${message}`);
             });
@@ -89,7 +97,10 @@ export class MusicService {
     }
 
     private async onError(error: Error, queue: Queue): Promise<void> {
-        this.client.logger.error(`[Music] Playback error in guild ${queue.id}: ${error.name}: ${error.message}`);
+        const ffmpegTail = this.ffmpegLog.splice(0).slice(-8).join(" | ");
+        const detail = ffmpegTail ? ` | ffmpeg: ${ffmpegTail}` : "";
+
+        this.client.logger.error(`[Music] Playback error in guild ${queue.id}: ${error.name}: ${error.message}${detail}`);
 
         await this.write(queue, { content: this.translate(queue.id).music.errors.loadFailed });
     }
