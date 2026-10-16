@@ -1,3 +1,5 @@
+import { emoji } from "#config";
+
 export default {
     metadata: {
         name: "Bahasa Indonesia",
@@ -126,30 +128,30 @@ export default {
             options: {
                 query: "Nama lagu, URL, atau kata pencarian.",
             },
-            added: (title: string, position: number) => `\`➕\` **${title}** ditambahkan ke antrean (${position}).`,
-            playlistAdded: (name: string, count: number) => `\`➕\` **${count}** lagu dari **${name}** ditambahkan ke antrean.`,
-            ended: "`⏹️` Antrean selesai, keluar dari voice channel.",
+            added: (title: string, position: number) => `${emoji.music.add} **${title}** ditambahkan ke antrean (${position}).`,
+            playlistAdded: (name: string, count: number) => `${emoji.music.add} **${count}** lagu dari **${name}** ditambahkan ke antrean.`,
+            ended: `${emoji.music.ended} Antrean selesai, keluar dari voice channel.`,
         },
         skip: {
             description: "Lewati lagu yang sedang diputar.",
             options: {
                 amount: "Berapa lagu yang dilewati.",
             },
-            skipped: (title: string) => `\`⏭️\` **${title}** dilewati.`,
+            skipped: (title: string) => `${emoji.music.skip} **${title}** dilewati.`,
         },
         stop: {
             description: "Hentikan player dan bersihkan antrean.",
-            stopped: "`⏹️` Player dihentikan dan antrean dibersihkan.",
+            stopped: `${emoji.music.ended} Player dihentikan dan antrean dibersihkan.`,
         },
         pause: {
             description: "Jeda lagu yang sedang diputar.",
-            paused: "`⏸️` Player dijeda.",
-            already: "`❌` Player sudah dijeda.",
+            paused: `${emoji.music.pause} Player dijeda.`,
+            already: `${emoji.error} Player sudah dijeda.`,
         },
         resume: {
             description: "Lanjutkan lagu yang sedang dijeda.",
-            resumed: "`▶️` Player dilanjutkan.",
-            already: "`❌` Player tidak sedang dijeda.",
+            resumed: `${emoji.music.resume} Player dilanjutkan.`,
+            already: `${emoji.error} Player tidak sedang dijeda.`,
         },
         nowplaying: {
             description: "Tampilkan lagu yang sedang diputar.",
@@ -168,7 +170,7 @@ export default {
             title: "Antrean",
             nowPlaying: "Sedang Diputar",
             upcoming: "Berikutnya",
-            empty: "`❌` Antrean kosong.",
+            empty: `${emoji.error} Antrean kosong.`,
             footer: (length: number, page: number, pages: number) => `${length} lagu • Halaman ${page}/${pages}`,
         },
         volume: {
@@ -176,7 +178,7 @@ export default {
             options: {
                 volume: "Persentase volume (0-200).",
             },
-            set: (volume: number) => `\`🔊\` Volume diatur ke **${volume}%**.`,
+            set: (volume: number) => `${emoji.music.volume} Volume diatur ke **${volume}%**.`,
         },
         loop: {
             description: "Putar mode loop antrean secara bergantian.",
@@ -188,41 +190,41 @@ export default {
                 track: "lagu",
                 queue: "antrean",
             },
-            set: (mode: string) => `\`🔁\` Mode loop diatur ke **${mode}**.`,
+            set: (mode: string) => `${emoji.music.loop} Mode loop diatur ke **${mode}**.`,
         },
         shuffle: {
             description: "Acak lagu-lagu di antrean.",
-            shuffled: (count: number) => `\`🔀\` **${count}** lagu di antrean diacak.`,
-            notEnough: "`❌` Lagu di antrean tidak cukup untuk diacak.",
+            shuffled: (count: number) => `${emoji.music.shuffle} **${count}** lagu di antrean diacak.`,
+            notEnough: `${emoji.error} Lagu di antrean tidak cukup untuk diacak.`,
         },
         remove: {
             description: "Hapus lagu dari antrean.",
             options: {
                 position: "Posisi antrean yang akan dihapus.",
             },
-            removed: (title: string) => `\`🗑️\` **${title}** dihapus dari antrean.`,
-            invalid: "`❌` Posisi antrean tidak valid.",
+            removed: (title: string) => `${emoji.music.remove} **${title}** dihapus dari antrean.`,
+            invalid: `${emoji.error} Posisi antrean tidak valid.`,
         },
         seek: {
             description: "Lompat ke posisi tertentu di lagu saat ini.",
             options: {
                 position: "Posisi dalam detik.",
             },
-            seeked: (time: string) => `\`⏩\` Melompat ke **${time}**.`,
-            invalid: "`❌` Tidak bisa melompat di lagu ini.",
+            seeked: (time: string) => `${emoji.music.seek} Melompat ke **${time}**.`,
+            invalid: `${emoji.error} Tidak bisa melompat di lagu ini.`,
         },
         leave: {
             description: "Putuskan bot dari voice channel.",
-            left: "`👋` Keluar dari voice channel.",
+            left: `${emoji.music.leave} Keluar dari voice channel.`,
         },
         errors: {
-            noVoice: "`❌` Kamu harus masuk ke voice channel dulu.",
-            notSameChannel: "`❌` Kamu harus berada di voice channel yang sama denganku.",
-            noPlayer: "`❌` Aku sedang tidak memutar apa pun.",
-            noResults: "`❌` Tidak ada hasil untuk pencarian itu.",
-            loadFailed: "`❌` Gagal memuat lagu tersebut.",
-            nodeUnavailable: "`❌` Tidak ada node musik yang tersedia saat ini.",
-            joinFailed: "`❌` Aku tidak bisa masuk ke voice channel kamu.",
+            noVoice: `${emoji.error} Kamu harus masuk ke voice channel dulu.`,
+            notSameChannel: `${emoji.error} Kamu harus berada di voice channel yang sama denganku.`,
+            noQueue: `${emoji.error} Aku sedang tidak memutar apa pun.`,
+            noResults: `${emoji.error} Tidak ada hasil untuk pencarian itu.`,
+            loadFailed: `${emoji.error} Gagal memuat lagu tersebut.`,
+            nsfw: `${emoji.error} Aku tidak bisa memutar konten terbatas usia di channel non-NSFW.`,
+            joinFailed: `${emoji.error} Aku tidak bisa masuk ke voice channel kamu.`,
         },
     },
 

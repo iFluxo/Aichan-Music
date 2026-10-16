@@ -1,6 +1,6 @@
 import { Cooldown } from "@slipher/cooldown";
 import { Command, type CommandContext, Declare, MessageFlags } from "seyfert";
-import { requirePlayer } from "../../plugins/music.utils";
+import { requireQueue } from "../../utils/music.utils";
 
 @Declare({
     name: "pause",
@@ -13,16 +13,16 @@ import { requirePlayer } from "../../plugins/music.utils";
 export default class PauseCommand extends Command {
     async run(ctx: CommandContext) {
         const translate = ctx.t.get();
-        const player = await requirePlayer(ctx);
+        const queue = await requireQueue(ctx);
 
-        if (!player || !ctx.guildId) return;
+        if (!queue) return;
 
-        if (player.paused) {
+        if (queue.paused) {
             await ctx.editOrReply({ content: translate.music.pause.already, flags: MessageFlags.Ephemeral });
             return;
         }
 
-        await ctx.music.setPaused(ctx.guildId, true);
+        await queue.pause();
 
         await ctx.editOrReply({ content: translate.music.pause.paused, flags: MessageFlags.Ephemeral });
     }

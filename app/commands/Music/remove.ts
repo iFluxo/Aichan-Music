@@ -1,6 +1,6 @@
 import { Cooldown } from "@slipher/cooldown";
 import { Command, type CommandContext, createIntegerOption, Declare, MessageFlags, Options } from "seyfert";
-import { requirePlayer } from "../../plugins/music.utils";
+import { requireQueue } from "../../utils/music.utils";
 
 const removeOptions = {
     position: createIntegerOption({
@@ -22,14 +22,15 @@ const removeOptions = {
 export default class RemoveCommand extends Command {
     async run(ctx: CommandContext<typeof removeOptions>) {
         const translate = ctx.t.get();
-        const player = await requirePlayer(ctx);
+        const queue = await requireQueue(ctx);
 
-        if (!player || !ctx.guildId) return;
+        if (!queue) return;
 
-        const removed = ctx.music.remove(ctx.guildId, ctx.options.position);
+        const position = ctx.options.position;
+        const removed = position > 0 && position < queue.songs.length ? queue.songs.splice(position, 1)[0] : undefined;
 
         await ctx.editOrReply({
-            content: removed ? translate.music.remove.removed(removed.info.title) : translate.music.remove.invalid,
+            content: removed ? translate.music.remove.removed(removed.name ?? "Unknown") : translate.music.remove.invalid,
             flags: MessageFlags.Ephemeral,
         });
     }

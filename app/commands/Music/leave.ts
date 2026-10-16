@@ -1,6 +1,6 @@
 import { Cooldown } from "@slipher/cooldown";
 import { Command, type CommandContext, Declare, MessageFlags } from "seyfert";
-import { ensureVoiceChannel } from "../../plugins/music.utils";
+import { requireQueue } from "../../utils/music.utils";
 
 @Declare({
     name: "leave",
@@ -13,11 +13,11 @@ import { ensureVoiceChannel } from "../../plugins/music.utils";
 export default class LeaveCommand extends Command {
     async run(ctx: CommandContext) {
         const translate = ctx.t.get();
-        const channelId = await ensureVoiceChannel(ctx);
+        const queue = await requireQueue(ctx);
 
-        if (!channelId || !ctx.guildId) return;
+        if (!queue) return;
 
-        await ctx.music.leave(ctx.guildId);
+        queue.voice.leave();
 
         await ctx.editOrReply({ content: translate.music.leave.left, flags: MessageFlags.Ephemeral });
     }

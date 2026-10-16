@@ -1,0 +1,95 @@
+import type { MessageCreateBodyRequest } from "seyfert/lib/common/types/write";
+import { Events, type Playlist, type Queue, Sonaria, type Song } from "sonaria";
+import type { Client } from "../AichanMusic";
+import { resolveLocale } from "./function";
+import { nowPlayingEmbed } from "./music.utils";
+import { YoutubeExtractor } from "./youtube.extractor";
+
+const UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36";
+
+export class MusicService {
+    readonly sonaria: Sonaria;
+
+    constructor(
+        private readonly client: Client,
+        private readonly connectedLog: boolean = false,
+    ) {
+        this.sonaria = new Sonaria(client, {
+            plugins: [new YoutubeExtractor()],
+            emitAddSongWhenCreatingQueue: false,
+            emitAddListWhenCreatingQueue: false,
+            ffmpeg: {
+                args: {
+                    input: {
+                        user_agent: UserAgent,
+                    },
+                },
+            },
+        });
+
+        this.sonaria
+            .on(Events.PlaySong, (queue, song) => void this.onPlaySong(queue, song))
+            .on(Events.AddSong, (queue, song) => void this.onAddSong(queue, song))
+            .on(Events.AddList, (queue, playlist) => void this.onAddList(queue, playlist))
+            .on(Events.Finish, (queue) => void this.onFinish(queue))
+            .on(Events.DeleteQueue, (queue) => this.onDeleteQueue(queue))
+            .on(Events.Error, (error, queue) => void this.onError(error, queue))
+            .on(Events.Debug, (message) => {
+                if (this.connectedLog) this.client.logger.debug(`[Sonaria] ${message}`);
+            });
+    }
+
+    getQueue(guildId: string): Queue | undefined {
+        return this.sonaria.getQueue(guildId);
+    }
+
+    private translate(guildId: string) {
+        return this.client.t(resolveLocale(guildId)).get();
+    }
+
+    private async write(queue: Queue, body: MessageCreateBodyRequest): Promise<void> {
+        if (!queue.textChannel) return;
+
+        try {
+            await queue.textChannel.messages.write(body);
+        } catch (error) {
+            this.client.logger.error(`[Music] Failed to send message in guild ${queue.id}:`, error);
+        }
+    }
+
+    private async onPlaySong(queue: Queue, song: Song): Promise<void> {
+        await this.write(queue, { embeds: [nowPlayingEmbed(this.translate(queue.id), song)] });
+    }
+
+    private async onAddSong(queue: Queue, song: Song): Promise<void> {
+        const translate = this.translate(queue.id);
+
+        await this.write(queue, {
+            content: translate.music.play.added(song.name ?? "Unknown", Math.max(1, queue.songs.length - 1)),
+        });
+    }
+
+    private async onAddList(queue: Queue, playlist: Playlist): Promise<void> {
+        const translate = this.translate(queue.id);
+
+        await this.write(queue, {
+            content: translate.music.play.playlistAdded(playlist.name ?? "Playlist", playlist.songs.length),
+        });
+    }
+
+    private async onFinish(queue: Queue): Promise<void> {
+        await this.write(queue, { content: this.translate(queue.id).music.play.ended });
+    }
+
+    private onDeleteQueue(queue: Queue): void {
+        queue.voice.leave();
+    }
+
+    private async onError(error: Error, queue: Queue): Promise<void> {
+        this.client.logger.error(`[Music] Playback error in guild ${queue.id}:`, error);
+
+        if (queue.songs.length === 0) {
+            await this.write(queue, { content: this.translate(queue.id).music.errors.loadFailed });
+        }
+    }
+}

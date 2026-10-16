@@ -16,7 +16,7 @@
     "dependencies": {
         "@slipher/cooldown": "^1.0.0",
         "seyfert": "^5.1.0",
-        "shoukaku": "^4.3.0",
+        "sonaria": "^0.2.0",
         "yunaforseyfert": "^1.2.4"
     },
     "devDependencies": {

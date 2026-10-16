@@ -1,6 +1,6 @@
 import { Cooldown } from "@slipher/cooldown";
 import { Command, type CommandContext, Declare, MessageFlags } from "seyfert";
-import { requirePlayer } from "../../plugins/music.utils";
+import { requireQueue } from "../../utils/music.utils";
 
 @Declare({
     name: "shuffle",
@@ -13,11 +13,13 @@ import { requirePlayer } from "../../plugins/music.utils";
 export default class ShuffleCommand extends Command {
     async run(ctx: CommandContext) {
         const translate = ctx.t.get();
-        const player = await requirePlayer(ctx);
+        const queue = await requireQueue(ctx);
 
-        if (!player || !ctx.guildId) return;
+        if (!queue) return;
 
-        const count = ctx.music.shuffle(ctx.guildId);
+        const count = Math.max(0, queue.songs.length - 1);
+
+        await queue.shuffle();
 
         await ctx.editOrReply({
             content: count < 2 ? translate.music.shuffle.notEnough : translate.music.shuffle.shuffled(count),

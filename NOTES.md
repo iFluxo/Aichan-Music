@@ -20,8 +20,9 @@ app/
   AichanMusic.ts            # CustomClient + default options (prefix, defaults error handler, presence)
   commands/
     Developer/  eval.ts, shell.ts      # onlyForDev, dibatasi DevGuilds
-    General/    help.ts, ping.ts, stats.ts
-    Utility/    language.ts, prefix.ts
+    Music/      play.ts, skip.ts, stop.ts, pause.ts, resume.ts, nowplaying.ts,
+                queue.ts, volume.ts, loop.ts, shuffle.ts, remove.ts, seek.ts, leave.ts
+    Utility/    help.ts, language.ts, ping.ts, prefix.ts, stats.ts
   components/
     Button/default.ts, StringSelect/default.ts
   database/
@@ -33,18 +34,26 @@ app/
     command.interface.ts    # global middleware: onlyForDev + set locale per guild + log
   plugins/
     database.plugin.ts      # createPlugin -> ctx.db & client.db
+    music.plugin.ts         # createPlugin -> ctx.music (MusicService dibuat saat setup)
     webhook.plugin.ts       # createPlugin -> ctx.webhook & client.webhook (Discord webhook helper)
-    utils.function.ts       # getUser, generateCases, setLocale/resolveLocale, pattern
-    utils.logger.ts         # customize Logger (RAM usage), global error handlers
+  utils/
+    function.ts             # getUser, generateCases, setLocale/resolveLocale, pattern
+    logger.ts               # customize Logger (RAM usage), global error handlers
+    music.service.ts        # wrapper Sonaria + event PlaySong/AddSong/AddList/Finish/DeleteQueue/Error/Debug
+    music.utils.ts          # formatTrack/formatDuration/nowPlayingEmbed/ensureVoiceChannel/requireQueue
+    youtube.extractor.ts    # ExtractorPlugin Sonaria berbasis binary yt-dlp
 assets/
-  config.ts                 # bot, colors, emojis
+  config.ts                 # bot, colors, emoji
   commands.template.ts      # template command baru
 ```
 
 ## 3. Alur runtime penting
 
-- `app/index.ts` mendaftarkan plugin: Yuna, Database, Webhook, cooldown; lalu `new Client(...)`
+- `app/index.ts` mendaftarkan plugin: Yuna, cooldown, `voice()` (Sonaria), Database, Music, Webhook; lalu `new Client(...)`
   dengan `globalMiddlewares` dari `middlewares/index.ts`.
+- `voice()` dari Sonaria menambahkan intent `GuildVoiceStates`, menyediakan `client.voice`/`ctx.voice`, dan `setup()`-nya
+  memanggil `manager.attach(client)`. `MusicPlugin.setup()` membuat `MusicService` (Sonaria) setelah semua client map plugin
+  terpasang, sehingga `client.voice` sudah tersedia.
 - Type module augmentation ada di `index.ts` (`SeyfertRegistry`, `ExtraProps.onlyForDev`, `ExtendContext.config/readyAt`).
 - Middleware `command.interface.ts`: cek `onlyForDev`, ambil locale guild dari DB lalu `setLocale()` (in-memory Map)
   dan override `ctx.t`, lalu log penggunaan command.
@@ -60,14 +69,16 @@ assets/
 - Sebelum selesai: `bunx tsc --noEmit` dan `bunx @biomejs/biome check .`.
 
 ### Catatan drift konvensi vs kode
-- `AGENTS.md` menyebut export `emoji` (singular) dan `{ emoji } from "#config"`, tetapi kode memakai **`emojis`** (plural) dengan key `#Developer/#General/#Utility`. Kode pakai `import { emojis as categoryEmoji } from "#config"` di `help.ts`.
+- `AGENTS.md` menyebut export `emoji` (singular) dan `{ emoji } from "#config"` — sudah sesuai: `assets/config.ts` mengekspor
+  `emoji` dengan key `#Developer/#Music/#Utility`, `error`, dan sub-objek `music.*`. `help.ts` memakai
+  `import { emoji as categoryEmoji } from "#config"`.
 - `AGENTS.md` menyebut item catalog `app/plugins/items.ts` yang **tidak ada** di repo ini. Kemungkinan konvensi hasil copy dari project lain — perlu disesuaikan.
 
 ## 5. Status kesehatan
 
 Sudah **bersih** per perbaikan terakhir:
 - `bunx tsc --noEmit` → **OK** (exit 0).
-- `bunx @biomejs/biome check .` → **0 warning / 0 error** (28 file dicek).
+- `bunx @biomejs/biome check .` → **0 warning / 0 error** (45 file dicek).
 - `bun build app/index.ts --target=bun` → **OK** (semua import resolve).
 - Catatan: instalasi `@types/node`/`typescript`/`@types/bun` sempat rusak karena hardlink cache bun
   (file jadi tidak terbaca — error `Invalid argument` di environment ini). Solusi: hapus `~/.bun/install/cache`
@@ -76,6 +87,7 @@ Sudah **bersih** per perbaikan terakhir:
 ## 6. Temuan / kandidat perbaikan
 
 ### Sudah diperbaiki
+> Catatan: poin 6–8 di bawah menyangkut `MusicManager`/Shoukaku lama yang **sudah dihapus** pada migrasi ke Sonaria (lihat sub-bagian "Migrasi musik"); poin 9 (base Alpine) digantikan oleh poin 16.
 1. ✅ **Bug prefix** — `app/AichanMusic.ts:33` diperbaiki dari `.bot` menjadi `.config` (lalu `.config.bot`).
 2. ✅ **`stats.ts`** — import & variabel tak terpakai (`formatMemoryUsage`, `memory`) kini dipakai untuk field memori (RSS), memakai key bahasa `stats.fields.memory` yang sudah ada.
 3. ✅ **Instalasi dependencies** — cache bun lama dibersihkan sehingga `@types/node`/`typescript` terpasang lengkap.
@@ -109,6 +121,23 @@ Sudah **bersih** per perbaikan terakhir:
 12. **`AGENTS.md` drift** — menyebut `emoji` (padahal kode `emojis`) dan file `app/plugins/items.ts` yang tidak ada. Perlu disesuaikan.
 13. **`GroqApiKey`** di `.env.example` belum dipakai di kode manapun.
 
+### Migrasi musik: Shoukaku/Lavalink → Sonaria
+14. ✅ **Ganti total Shoukaku/Lavalink dengan `sonaria`** — `shoukaku` dihapus dari dependency, config `lavalink` di
+    `assets/config.ts` dan env `Lavalink*` di `.env.example` dibuang. Musik kini memakai library **`sonaria`** (voice
+    native + FFmpeg) dengan extractor YouTube berbasis binary **`yt-dlp`** (`app/utils/youtube.extractor.ts`,
+    env opsional `YtDlpPath`/`YtDlpCookies`). Semua 13 command di `app/commands/Music/` di-porting ke API `Queue` Sonaria
+    (`play/jump/shuffle/setRepeatMode/seek/setVolume/stop` + `queue.voice.leave()`).
+15. ✅ **Struktur disamakan dengan `/app/Aichan`** — helper dipindah ke `app/utils/` (`function.ts`, `logger.ts`),
+    `music.manager.ts`/`music.utils.ts` lama dihapus dan digantikan `music.service.ts`/`music.utils.ts`, `MusicPlugin`
+    hanya mengekspos `ctx.music` (instance `Sonaria` dibuat saat `setup()`), dan export config `emojis` → `emoji`.
+    Bot keluar dari voice channel lewat listener `DeleteQueue` (menutup semua jalur: selesai natural, error, `stop`, disconnect eksternal).
+16. ✅ **Dockerfile** — base diganti `oven/bun:1-debian` supaya FFmpeg + binary standalone `yt-dlp` bisa berjalan
+    (Alpine/musl tidak bisa menjalankan binary PyInstaller yt-dlp). FFmpeg dan yt-dlp di-install saat build
+    (asset yt-dlp dipilih berdasarkan `TARGETARCH`).
+17. ⚠️ **Catatan**: eksekusi audio belum diuji end-to-end di environment analisa (tidak ada FFmpeg/yt-dlp/Docker).
+    Verifikasi yang tersedia: `tsc` bersih, `biome` bersih, dan smoke-test pemuatan 13 command + logika `validate`/error
+    extractor. Saat deploy, pastikan IP server tidak diblokir YouTube (umum terjadi di datacenter).
+
 ## 7. Perintah npm/bun
 
 ```
@@ -119,9 +148,10 @@ bun run biome:check
 
 ## 8. Environment (.env)
 
-`Token, PostgresHost, PostgresPort, PostgresDatabase, PostgresUsername, PostgresPassword, RedisUrl, ConfigLocale, ConfigPrefixs, ConfigDevs, ConfigGuilds, WebhookLogUrl, GroqApiKey`
+`Token, PostgresHost, PostgresPort, PostgresDatabase, PostgresUsername, PostgresPassword, RedisUrl, ConfigLocale, ConfigPrefixs, ConfigDevs, ConfigGuilds, YtDlpPath, YtDlpCookies, WebhookLogUrl`
 
 - Postgres: `PostgresHost` (default `localhost`), `PostgresPort` (default `5432`), `PostgresUsername` (default `postgres`),
   `PostgresPassword` (default kosong); hanya `PostgresDatabase` yang wajib diisi. Koneksi dibuat via options object `Bun.SQL`
   (bukan `PostgresUrl`).
-- Catatan: `GroqApiKey` belum dipakai di kode manapun saat analisa.
+- Musik: `YtDlpPath` (path binary `yt-dlp`, default `yt-dlp` dari PATH) dan `YtDlpCookies` (path file cookies, opsional).
+- Env `Lavalink*` sudah dihapus (tidak dipakai lagi). `GroqApiKey` hanya ada di catatan lama, tidak ada di `.env.example`.

@@ -1,6 +1,7 @@
 import { Cooldown } from "@slipher/cooldown";
 import { Command, type CommandContext, createIntegerOption, Declare, MessageFlags, Options } from "seyfert";
-import { requirePlayer } from "../../plugins/music.utils";
+import { RepeatMode } from "sonaria";
+import { requireQueue } from "../../utils/music.utils";
 
 const skipOptions = {
     amount: createIntegerOption({
@@ -23,14 +24,27 @@ const skipOptions = {
 export default class SkipCommand extends Command {
     async run(ctx: CommandContext<typeof skipOptions>) {
         const translate = ctx.t.get();
-        const player = await requirePlayer(ctx);
+        const queue = await requireQueue(ctx);
 
-        if (!player || !ctx.guildId) return;
+        if (!queue) return;
 
-        const skipped = await ctx.music.skip(ctx.guildId, ctx.options.amount ?? 1);
+        const skipped = queue.songs[0];
+
+        if (!skipped) {
+            await ctx.editOrReply({ content: translate.music.queue.empty, flags: MessageFlags.Ephemeral });
+            return;
+        }
+
+        const amount = ctx.options.amount ?? 1;
+
+        try {
+            await queue.jump(amount, { requeue: queue.repeatMode === RepeatMode.Queue });
+        } catch {
+            await queue.stop();
+        }
 
         await ctx.editOrReply({
-            content: skipped ? translate.music.skip.skipped(skipped.info.title) : translate.music.queue.empty,
+            content: translate.music.skip.skipped(skipped.name ?? "Unknown"),
             flags: MessageFlags.Ephemeral,
         });
     }

@@ -1,6 +1,6 @@
 import { Cooldown } from "@slipher/cooldown";
 import { Command, type CommandContext, Declare, MessageFlags } from "seyfert";
-import { formatDuration, nowPlayingEmbed, requirePlayer } from "../../plugins/music.utils";
+import { nowPlayingEmbed, requireQueue } from "../../utils/music.utils";
 
 @Declare({
     name: "nowplaying",
@@ -14,23 +14,17 @@ import { formatDuration, nowPlayingEmbed, requirePlayer } from "../../plugins/mu
 export default class NowPlayingCommand extends Command {
     async run(ctx: CommandContext) {
         const translate = ctx.t.get();
-        const player = await requirePlayer(ctx);
+        const queue = await requireQueue(ctx);
 
-        if (!player || !ctx.guildId) return;
+        if (!queue) return;
 
-        const current = ctx.music.getQueue(ctx.guildId).current;
+        const current = queue.songs[0];
 
         if (!current) {
             await ctx.editOrReply({ content: translate.music.queue.empty, flags: MessageFlags.Ephemeral });
             return;
         }
 
-        const embed = nowPlayingEmbed(translate, current).addFields({
-            name: translate.music.nowplaying.fields.position,
-            value: formatDuration(player.position),
-            inline: true,
-        });
-
-        await ctx.editOrReply({ embeds: [embed] });
+        await ctx.editOrReply({ embeds: [nowPlayingEmbed(translate, current, queue.currentTime)] });
     }
 }

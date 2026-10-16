@@ -1,6 +1,6 @@
 import { Cooldown } from "@slipher/cooldown";
 import { Command, type CommandContext, createIntegerOption, Declare, MessageFlags, Options } from "seyfert";
-import { formatDuration, requirePlayer } from "../../plugins/music.utils";
+import { formatDuration, requireQueue } from "../../utils/music.utils";
 
 const seekOptions = {
     position: createIntegerOption({
@@ -22,15 +22,28 @@ const seekOptions = {
 export default class SeekCommand extends Command {
     async run(ctx: CommandContext<typeof seekOptions>) {
         const translate = ctx.t.get();
-        const player = await requirePlayer(ctx);
+        const queue = await requireQueue(ctx);
 
-        if (!player || !ctx.guildId) return;
+        if (!queue) return;
 
-        const position = await ctx.music.seek(ctx.guildId, ctx.options.position);
+        const current = queue.songs[0];
 
-        await ctx.editOrReply({
-            content: position === null ? translate.music.seek.invalid : translate.music.seek.seeked(formatDuration(position * 1000)),
-            flags: MessageFlags.Ephemeral,
-        });
+        if (!current || current.isLive || current.duration <= 0) {
+            await ctx.editOrReply({ content: translate.music.seek.invalid, flags: MessageFlags.Ephemeral });
+            return;
+        }
+
+        const position = Math.min(Math.max(Math.floor(ctx.options.position), 0), current.duration);
+
+        try {
+            await queue.seek(position);
+
+            await ctx.editOrReply({
+                content: translate.music.seek.seeked(formatDuration(position)),
+                flags: MessageFlags.Ephemeral,
+            });
+        } catch {
+            await ctx.editOrReply({ content: translate.music.seek.invalid, flags: MessageFlags.Ephemeral });
+        }
     }
 }

@@ -1,6 +1,6 @@
 import { Cooldown } from "@slipher/cooldown";
 import { Command, type CommandContext, createIntegerOption, Declare, MessageFlags, Options } from "seyfert";
-import { requirePlayer } from "../../plugins/music.utils";
+import { requireQueue } from "../../utils/music.utils";
 
 const volumeOptions = {
     volume: createIntegerOption({
@@ -23,12 +23,15 @@ const volumeOptions = {
 export default class VolumeCommand extends Command {
     async run(ctx: CommandContext<typeof volumeOptions>) {
         const translate = ctx.t.get();
-        const player = await requirePlayer(ctx);
+        const queue = await requireQueue(ctx);
 
-        if (!player || !ctx.guildId) return;
+        if (!queue) return;
 
-        const volume = await ctx.music.setVolume(ctx.guildId, ctx.options.volume);
+        queue.setVolume(ctx.options.volume);
 
-        await ctx.editOrReply({ content: translate.music.volume.set(volume), flags: MessageFlags.Ephemeral });
+        await ctx.editOrReply({
+            content: translate.music.volume.set(ctx.options.volume),
+            flags: MessageFlags.Ephemeral,
+        });
     }
 }

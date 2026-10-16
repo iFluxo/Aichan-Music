@@ -15,9 +15,9 @@ import {
     TextDisplay,
 } from "seyfert";
 import type { UsingClient } from "seyfert/lib/commands/applications/shared";
-import { emojis as categoryEmoji } from "#config";
+import { emoji as categoryEmoji } from "#config";
 
-const APP_COMMANDS_TTL = 300_000;
+const AppCommandsTtl = 300_000;
 
 let appCommandsCache: { data: RESTGetAPIApplicationCommandsResult | undefined; expires: number } | undefined;
 
@@ -136,7 +136,7 @@ async function getAppCommands(client: UsingClient): Promise<RESTGetAPIApplicatio
     }
 
     const data = await client.proxy.applications(client.applicationId)?.commands?.get();
-    appCommandsCache = { data, expires: now + APP_COMMANDS_TTL };
+    appCommandsCache = { data, expires: now + AppCommandsTtl };
 
     return data;
 }

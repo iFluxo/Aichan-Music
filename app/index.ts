@@ -1,4 +1,4 @@
-import "./plugins/utils.logger";
+import "./utils/logger";
 
 import { type CooldownMiddlewares, type CooldownResult, cooldown } from "@slipher/cooldown";
 import {
@@ -10,6 +10,7 @@ import {
     type ParseGlobalMiddlewares,
     type Client as SeyfertClient,
 } from "seyfert";
+import { voice } from "sonaria";
 import { Yuna } from "yunaforseyfert";
 import type * as config from "#config";
 import { Client } from "./AichanMusic";
@@ -17,8 +18,8 @@ import type en from "./languages/en";
 import * as globalMiddlewares from "./middlewares/index";
 import { DatabasePlugin } from "./plugins/database.plugin";
 import { MusicPlugin } from "./plugins/music.plugin";
-import { resolveLocale } from "./plugins/utils.function";
 import { WebhookPlugin } from "./plugins/webhook.plugin";
+import { resolveLocale } from "./utils/function";
 
 function cooldownMessage(result: CooldownResult, context: AnyContext): string {
     const guildId = (context as { guildId?: string | null }).guildId;
@@ -33,6 +34,7 @@ const plugins = definePlugins(
     Yuna.plugin({
         parser: { syntax: { namedOptions: ["-", "--"] } },
     }),
+    voice(),
     DatabasePlugin(true),
     MusicPlugin(true),
     WebhookPlugin({

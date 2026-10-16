@@ -1,6 +1,19 @@
 import { Cooldown } from "@slipher/cooldown";
 import { Command, type CommandContext, createStringOption, Declare, MessageFlags, Options } from "seyfert";
-import { requirePlayer } from "../../plugins/music.utils";
+import { RepeatMode } from "sonaria";
+import { requireQueue } from "../../utils/music.utils";
+
+const LoopModes = {
+    none: RepeatMode.Disabled,
+    track: RepeatMode.Song,
+    queue: RepeatMode.Queue,
+} as const;
+
+const LoopNames: Record<RepeatMode, keyof typeof LoopModes> = {
+    [RepeatMode.Disabled]: "none",
+    [RepeatMode.Song]: "track",
+    [RepeatMode.Queue]: "queue",
+};
 
 const loopOptions = {
     mode: createStringOption({
@@ -26,14 +39,23 @@ const loopOptions = {
 export default class LoopCommand extends Command {
     async run(ctx: CommandContext<typeof loopOptions>) {
         const translate = ctx.t.get();
-        const player = await requirePlayer(ctx);
+        const queue = await requireQueue(ctx);
 
-        if (!player || !ctx.guildId) return;
+        if (!queue) return;
 
-        const mode = ctx.options.mode
-            ? ctx.music.setLoop(ctx.guildId, ctx.options.mode as "none" | "track" | "queue")
-            : ctx.music.cycleLoop(ctx.guildId);
+        const selected = ctx.options.mode as keyof typeof LoopModes | undefined;
+        let mode: RepeatMode;
 
-        await ctx.editOrReply({ content: translate.music.loop.set(translate.music.loop.modes[mode]), flags: MessageFlags.Ephemeral });
+        if (selected) {
+            queue.repeatMode = LoopModes[selected];
+            mode = queue.repeatMode;
+        } else {
+            mode = queue.setRepeatMode();
+        }
+
+        await ctx.editOrReply({
+            content: translate.music.loop.set(translate.music.loop.modes[LoopNames[mode]]),
+            flags: MessageFlags.Ephemeral,
+        });
     }
 }

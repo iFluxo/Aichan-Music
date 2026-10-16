@@ -12,16 +12,23 @@ export const colors = {
     Secondary: 0x5865f2,
 };
 
-export const lavalink = {
-    Name: import.meta.env.LavalinkName ?? "default",
-    Url: import.meta.env.LavalinkUrl ?? "localhost:2333",
-    Auth: import.meta.env.LavalinkAuth ?? "youshallnotpass",
-    Secure: (import.meta.env.LavalinkSecure ?? "false") === "true",
-    Search: import.meta.env.LavalinkSearch ?? "ytsearch",
-};
-
-export const emojis = {
+export const emoji = {
     "#Developer": "🔐",
     "#Music": "🎵",
     "#Utility": "🛠️",
+    error: "❌",
+    music: {
+        add: "➕",
+        ended: "⏹️",
+        skip: "⏭️",
+        pause: "⏸️",
+        resume: "▶️",
+        seek: "⏩",
+        shuffle: "🔀",
+        loop: "🔁",
+        volume: "🔊",
+        remove: "🗑️",
+        leave: "👋",
+        live: "🔴",
+    },
 };

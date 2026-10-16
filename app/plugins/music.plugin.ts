@@ -1,10 +1,10 @@
 import { createPlugin } from "seyfert";
 import type { Client } from "../AichanMusic";
-import { MusicManager } from "./music.manager";
+import { MusicService } from "../utils/music.service";
 
 export function MusicPlugin(connectedLog: boolean = false) {
-    let instance: MusicManager | undefined;
-    const getMusic = (client: Client) => (instance ??= new MusicManager(client, connectedLog));
+    let instance: MusicService | undefined;
+    const getMusic = (client: Client) => (instance ??= new MusicService(client, connectedLog));
 
     return createPlugin({
         name: "Music",

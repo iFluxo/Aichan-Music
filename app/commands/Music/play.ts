@@ -1,8 +1,7 @@
 import { Cooldown } from "@slipher/cooldown";
 import { Command, type CommandContext, createStringOption, Declare, MessageFlags, Options } from "seyfert";
-import { LoadType } from "shoukaku";
-import { lavalink } from "#config";
-import { ensureVoiceChannel, nowPlayingEmbed } from "../../plugins/music.utils";
+import { isTextChannelInstance, SonariaError } from "sonaria";
+import { ensureVoiceChannel } from "../../utils/music.utils";
 
 const playOptions = {
     query: createStringOption({
@@ -11,11 +10,16 @@ const playOptions = {
     }),
 };
 
-function buildIdentifier(query: string): string {
-    const trimmed = query.trim();
+const NoResultErrors = new Set([
+    "NoResult",
+    "CannotResolveSong",
+    "NotSupportedUrl",
+    "EmptyPlaylist",
+    "EmptyFilteredPlaylist",
+    "NoExtractorPlugin",
+]);
 
-    return /^[a-z]+:\/\//i.test(trimmed) || /^[a-z]+search:/i.test(trimmed) ? trimmed : `${lavalink.Search}:${trimmed}`;
-}
+const JoinErrors = new Set(["VoiceConnectFailed", "VoiceReconnectFailed", "VoiceMissingPerms", "VoiceFull"]);
 
 @Declare({
     name: "play",
@@ -30,75 +34,32 @@ function buildIdentifier(query: string): string {
 export default class PlayCommand extends Command {
     async run(ctx: CommandContext<typeof playOptions>) {
         const translate = ctx.t.get();
-        const guildId = ctx.guildId;
+        const voiceChannel = await ensureVoiceChannel(ctx);
 
-        if (!guildId) {
-            await ctx.editOrReply({ content: translate.common.onlyInGuild, flags: MessageFlags.Ephemeral });
+        if (!voiceChannel) return;
+
+        await ctx.deferReply(true);
+
+        const textChannel = ctx.channel("cache");
+
+        try {
+            await ctx.music.sonaria.play(voiceChannel, ctx.options.query, {
+                member: ctx.member ?? undefined,
+                textChannel: isTextChannelInstance(textChannel) ? textChannel : undefined,
+            });
+        } catch (error) {
+            let content = translate.music.errors.loadFailed;
+
+            if (error instanceof SonariaError) {
+                if (NoResultErrors.has(error.errorCode)) content = translate.music.errors.noResults;
+                else if (JoinErrors.has(error.errorCode)) content = translate.music.errors.joinFailed;
+                else if (error.errorCode === "NonNsfw") content = translate.music.errors.nsfw;
+            }
+
+            await ctx.editOrReply({ content, flags: MessageFlags.Ephemeral });
             return;
         }
 
-        const channelId = await ensureVoiceChannel(ctx);
-
-        if (!channelId) return;
-
-        const result = await ctx.music.resolve(buildIdentifier(ctx.options.query)).catch(() => undefined);
-
-        if (!result) {
-            await ctx.editOrReply({ content: translate.music.errors.nodeUnavailable, flags: MessageFlags.Ephemeral });
-            return;
-        }
-
-        if (result.loadType === LoadType.EMPTY) {
-            await ctx.editOrReply({ content: translate.music.errors.noResults, flags: MessageFlags.Ephemeral });
-            return;
-        }
-
-        if (result.loadType === LoadType.ERROR) {
-            await ctx.editOrReply({ content: translate.music.errors.loadFailed, flags: MessageFlags.Ephemeral });
-            return;
-        }
-
-        const playlistName = result.loadType === LoadType.PLAYLIST ? result.data.info.name : null;
-        const tracks =
-            result.loadType === LoadType.PLAYLIST
-                ? result.data.tracks
-                : result.loadType === LoadType.SEARCH
-                  ? result.data.slice(0, 1)
-                  : [result.data];
-
-        if (!tracks.length) {
-            await ctx.editOrReply({ content: translate.music.errors.noResults, flags: MessageFlags.Ephemeral });
-            return;
-        }
-
-        const player = ctx.music.player(guildId) ?? (await ctx.music.join(guildId, channelId).catch(() => null));
-
-        if (!player) {
-            await ctx.editOrReply({ content: translate.music.errors.joinFailed, flags: MessageFlags.Ephemeral });
-            return;
-        }
-
-        const queue = ctx.music.getQueue(guildId);
-
-        queue.textChannelId = ctx.channelId;
-        queue.endMessage = translate.music.play.ended;
-
-        if (!queue.current) {
-            const [first, ...rest] = tracks;
-
-            await ctx.music.play(guildId, first);
-            ctx.music.enqueue(guildId, rest);
-
-            await ctx.editOrReply({ embeds: [nowPlayingEmbed(translate, first)] });
-            return;
-        }
-
-        ctx.music.enqueue(guildId, tracks);
-
-        await ctx.editOrReply({
-            content: playlistName
-                ? translate.music.play.playlistAdded(playlistName, tracks.length)
-                : translate.music.play.added(tracks[0].info.title, queue.tracks.length),
-        });
+        await ctx.deleteResponse().catch(() => undefined);
     }
 }

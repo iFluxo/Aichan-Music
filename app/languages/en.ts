@@ -1,3 +1,5 @@
+import { emoji } from "#config";
+
 export default {
     metadata: {
         name: "English",
@@ -125,30 +127,30 @@ export default {
             options: {
                 query: "Song name, URL or search query.",
             },
-            added: (title: string, position: number) => `\`➕\` Added **${title}** to the queue (${position}).`,
-            playlistAdded: (name: string, count: number) => `\`➕\` Added **${count}** tracks from **${name}** to the queue.`,
-            ended: "`⏹️` The queue has ended, leaving the voice channel.",
+            added: (title: string, position: number) => `${emoji.music.add} Added **${title}** to the queue (${position}).`,
+            playlistAdded: (name: string, count: number) => `${emoji.music.add} Added **${count}** tracks from **${name}** to the queue.`,
+            ended: `${emoji.music.ended} The queue has ended, leaving the voice channel.`,
         },
         skip: {
             description: "Skip the current track.",
             options: {
                 amount: "How many tracks to skip.",
             },
-            skipped: (title: string) => `\`⏭️\` Skipped **${title}**.`,
+            skipped: (title: string) => `${emoji.music.skip} Skipped **${title}**.`,
         },
         stop: {
             description: "Stop the player and clear the queue.",
-            stopped: "`⏹️` Stopped the player and cleared the queue.",
+            stopped: `${emoji.music.ended} Stopped the player and cleared the queue.`,
         },
         pause: {
             description: "Pause the current track.",
-            paused: "`⏸️` Paused the player.",
-            already: "`❌` The player is already paused.",
+            paused: `${emoji.music.pause} Paused the player.`,
+            already: `${emoji.error} The player is already paused.`,
         },
         resume: {
             description: "Resume the current track.",
-            resumed: "`▶️` Resumed the player.",
-            already: "`❌` The player is not paused.",
+            resumed: `${emoji.music.resume} Resumed the player.`,
+            already: `${emoji.error} The player is not paused.`,
         },
         nowplaying: {
             description: "Show the currently playing track.",
@@ -167,7 +169,7 @@ export default {
             title: "Queue",
             nowPlaying: "Now Playing",
             upcoming: "Upcoming",
-            empty: "`❌` The queue is empty.",
+            empty: `${emoji.error} The queue is empty.`,
             footer: (length: number, page: number, pages: number) => `${length} tracks • Page ${page}/${pages}`,
         },
         volume: {
@@ -175,7 +177,7 @@ export default {
             options: {
                 volume: "Volume percentage (0-200).",
             },
-            set: (volume: number) => `\`🔊\` Set the volume to **${volume}%**.`,
+            set: (volume: number) => `${emoji.music.volume} Set the volume to **${volume}%**.`,
         },
         loop: {
             description: "Cycle the loop mode for the queue.",
@@ -187,41 +189,41 @@ export default {
                 track: "track",
                 queue: "queue",
             },
-            set: (mode: string) => `\`🔁\` Set the loop mode to **${mode}**.`,
+            set: (mode: string) => `${emoji.music.loop} Set the loop mode to **${mode}**.`,
         },
         shuffle: {
             description: "Shuffle the queued tracks.",
-            shuffled: (count: number) => `\`🔀\` Shuffled **${count}** queued tracks.`,
-            notEnough: "`❌` There are not enough queued tracks to shuffle.",
+            shuffled: (count: number) => `${emoji.music.shuffle} Shuffled **${count}** queued tracks.`,
+            notEnough: `${emoji.error} There are not enough queued tracks to shuffle.`,
         },
         remove: {
             description: "Remove a track from the queue.",
             options: {
                 position: "Queue position to remove.",
             },
-            removed: (title: string) => `\`🗑️\` Removed **${title}** from the queue.`,
-            invalid: "`❌` Invalid queue position.",
+            removed: (title: string) => `${emoji.music.remove} Removed **${title}** from the queue.`,
+            invalid: `${emoji.error} Invalid queue position.`,
         },
         seek: {
             description: "Seek to a position in the current track.",
             options: {
                 position: "Position in seconds.",
             },
-            seeked: (time: string) => `\`⏩\` Seeked to **${time}**.`,
-            invalid: "`❌` Cannot seek this track.",
+            seeked: (time: string) => `${emoji.music.seek} Seeked to **${time}**.`,
+            invalid: `${emoji.error} Cannot seek this track.`,
         },
         leave: {
             description: "Disconnect the bot from the voice channel.",
-            left: "`👋` Left the voice channel.",
+            left: `${emoji.music.leave} Left the voice channel.`,
         },
         errors: {
-            noVoice: "`❌` You need to join a voice channel first.",
-            notSameChannel: "`❌` You need to be in the same voice channel as me.",
-            noPlayer: "`❌` I'm not playing anything right now.",
-            noResults: "`❌` No results found for that query.",
-            loadFailed: "`❌` Failed to load that track.",
-            nodeUnavailable: "`❌` No music node is available right now.",
-            joinFailed: "`❌` I couldn't join your voice channel.",
+            noVoice: `${emoji.error} You need to join a voice channel first.`,
+            notSameChannel: `${emoji.error} You need to be in the same voice channel as me.`,
+            noQueue: `${emoji.error} I'm not playing anything right now.`,
+            noResults: `${emoji.error} No results found for that query.`,
+            loadFailed: `${emoji.error} Failed to load that track.`,
+            nsfw: `${emoji.error} I cannot play age-restricted content in a non-NSFW channel.`,
+            joinFailed: `${emoji.error} I couldn't join your voice channel.`,
         },
     },
 
