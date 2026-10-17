@@ -5,6 +5,8 @@ import type { Client } from "../AichanMusic";
 import { resolveLocale } from "./function";
 import { nowPlayingEmbed } from "./music.utils";
 
+const DefaultQueueVolume = 100;
+
 export class MusicService {
     readonly sonaria: Sonaria;
 
@@ -30,9 +32,15 @@ export class MusicService {
             ],
             emitAddSongWhenCreatingQueue: false,
             emitAddListWhenCreatingQueue: false,
+            ffmpeg: {
+                args: {
+                    global: { loglevel: "error" },
+                },
+            },
         });
 
         this.sonaria
+            .on(Events.InitQueue, (queue) => queue.setVolume(DefaultQueueVolume))
             .on(Events.PlaySong, (queue, song) => void this.onPlaySong(queue, song))
             .on(Events.AddSong, (queue, song) => void this.onAddSong(queue, song))
             .on(Events.AddList, (queue, playlist) => void this.onAddList(queue, playlist))
@@ -43,7 +51,7 @@ export class MusicService {
                 this.ffmpegLog.push(message);
                 if (this.ffmpegLog.length > 30) this.ffmpegLog.shift();
 
-                this.client.logger.debug(`[ffmpeg] ${message}`);
+                if (this.connectedLog) this.client.logger.debug(`[ffmpeg] ${message}`);
             })
             .on(Events.Debug, (message) => {
                 if (this.connectedLog) this.client.logger.debug(`[Sonaria] ${message}`);

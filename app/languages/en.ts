@@ -137,6 +137,7 @@ export default {
                 amount: "How many tracks to skip.",
             },
             skipped: (title: string) => `${emoji.music.skip} Skipped **${title}**.`,
+            noNext: `${emoji.error} There is no next track to skip to.`,
         },
         stop: {
             description: "Stop the player and clear the queue.",

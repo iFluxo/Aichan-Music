@@ -164,13 +164,30 @@ Sudah **bersih** per perbaikan terakhir:
     adalah batas `yt-dlp` dan tidak bisa dihilangkan tanpa resolver persisten seperti Lavalink.
 22. ✅ **Ganti extractor kustom dengan suite `sonaria-plugins`** — `app/utils/youtube.extractor.ts` beserta seluruh
     konfigurasinya (`YtDlpPath`, `YtDlpCookies`, `YtDlpExtractorArgs`, `YtDlpPoToken`) dan instalasi `yt-dlp` di
-    Dockerfile dihapus. `MusicService` sekarang memakai `sonariaPlugins()` dari paket lokal `sonaria-plugins/`
-    (Deezer, YouTube, SoundCloud, Spotify, Apple Music) — dipetakan lewat `compilerOptions.paths` di `tsconfig.json`
+    Dockerfile dihapus. `MusicService` sekarang memakai extractor dari paket lokal `sonaria-plugins/`
+    (factory `applemusic()`/`deezer()`/`soundcloud()`/`spotify()`/`youtube()`, sumber Deezer, YouTube, SoundCloud,
+    Spotify dan Apple Music) — dipetakan lewat `compilerOptions.paths` di `tsconfig.json`
     ke sumber (`src/index.ts`) sehingga tidak perlu build `dist` (folder `dist` di-*gitignore* dan tidak ikut ke deploy).
     YouTube dijalankan dengan `downloader: "download"` (paling andal di datacenter: media diunduh `yt-dlp` ke file lokal,
     FFmpeg membaca `file://`) dan `ytdlp.autoInstall: true` (binary `yt-dlp` diunduh otomatis saat runtime, jadi
     Dockerfile tidak lagi meng-install-nya). Override `reconnect` FFmpeg dihapus karena stream `file://` sudah otomatis.
-    For query teks, urutan plugin berarti Deezer dijawab lebih dulu lalu mirror ke YouTube/SoundCloud.
+    Untuk query teks, urutan plugin berarti Deezer dijawab lebih dulu lalu mirror ke YouTube/SoundCloud.
+23. ✅ **Perbaikan suara & kebisingan log** — tiga temuan:
+    1. **Volume default 50% → audio ~10 dB terlalu kecil.** `Queue` Sonaria mengeset `this.volume = DefaultVolume`
+       (50) saat queue dibuat, dan `volumeToMultiplier(50) = (50/100)^(0.5/log10 2) = 0.316` (≈ -10 dB). `MusicService`
+       sekarang mendengarkan `Events.InitQueue` dan memanggil `queue.setVolume(100)` (`DefaultQueueVolume`), jadi
+       multiplier = 1 (unity). Terukur: `volumedetect` mean 50% = **-26,7 dB** vs 100% = **-16,7 dB**.
+    2. **Log FFmpeg terlalu ramai.** Sonaria tidak mengeset `-loglevel`, jadi FFmpeg mencetak seluruh baris info ke stderr
+       dan tiap baris diteruskan ke `logger.debug`. Ditambah `ffmpeg.args.global = { loglevel: "error" }`; sekarang
+       pemutaran sukses menghasilkan **0 byte stderr**. Log FFmpeg per-baris juga hanya dikeluarkan saat `connectedLog`,
+       sedangkan 30 baris terakhir tetap disimpan untuk konteks saat error.
+    3. **Audio "megap-megap"/tidak konsisten.** `downloader: "auto"` mengembalikan URL `googlevideo` langsung tanpa
+       verifikasi, lalu FFmpeg menariknya sendiri; di IP datacenter stream itu di-throttle/berisi data rusak sehingga
+       suara patah-patah. Diganti ke `downloader: "download"` (yt-dlp yang mengunduh file utuh, FFmpeg baca `file://`).
+    4. **Bug `/skip`** — sebelumnya `queue.jump()` yang melempar (mis. `NoUpNext` saat tak ada lagu berikutnya)
+       ditangkap lalu `queue.stop()`, sehingga musik/vc berhenti tanpa penjelasan. Sekarang jumlah skip di-clamp ke
+       sisa lagu, tidak ada lagu berikutnya → balas `music.skip.noNext` (kunci baru di `en.ts`/`id.ts`), dan kegagalan
+       lain dilaporkan ke logger + balasan `errors.loadFailed` tanpa menyentuh queue.
 
 ## 7. Perintah npm/bun
 

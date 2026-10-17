@@ -138,6 +138,7 @@ export default {
                 amount: "Berapa lagu yang dilewati.",
             },
             skipped: (title: string) => `${emoji.music.skip} **${title}** dilewati.`,
+            noNext: `${emoji.error} Tidak ada lagu berikutnya untuk dilewati.`,
         },
         stop: {
             description: "Hentikan player dan bersihkan antrean.",

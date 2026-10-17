@@ -35,12 +35,22 @@ export default class SkipCommand extends Command {
             return;
         }
 
-        const amount = ctx.options.amount ?? 1;
+        const available = queue.songs.length - 1;
+
+        if (available < 1) {
+            await ctx.editOrReply({ content: translate.music.skip.noNext, flags: MessageFlags.Ephemeral });
+            return;
+        }
+
+        const amount = Math.min(ctx.options.amount ?? 1, available);
 
         try {
             await queue.jump(amount, { requeue: queue.repeatMode === RepeatMode.Queue });
-        } catch {
-            await queue.stop();
+        } catch (error) {
+            ctx.client.logger.error(`[Music] skip failed in guild ${queue.id}:`, error);
+
+            await ctx.editOrReply({ content: translate.music.errors.loadFailed, flags: MessageFlags.Ephemeral });
+            return;
         }
 
         await ctx.editOrReply({
