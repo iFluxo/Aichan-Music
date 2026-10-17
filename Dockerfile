@@ -19,7 +19,6 @@ COPY --from=deps /AichanMusic/node_modules ./node_modules
 COPY package.json bun.lock* ./
 COPY tsconfig.json seyfert.config.ts ./
 COPY assets ./assets
-COPY sonaria-plugins ./sonaria-plugins
 COPY app ./app
 
 CMD ["bun", "start"]

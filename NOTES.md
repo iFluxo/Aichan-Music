@@ -41,7 +41,6 @@ app/
     logger.ts               # customize Logger (RAM usage), global error handlers
     music.service.ts        # wrapper Sonaria + event PlaySong/AddSong/AddList/Finish/DeleteQueue/Error/Debug
     music.utils.ts          # formatTrack/formatDuration/nowPlayingEmbed/ensureVoiceChannel/requireQueue
-sonaria-plugins/            # suite extractor lokal (core, youtube, deezer, soundcloud, spotify, applemusic)
 assets/
   config.ts                 # bot, colors, emoji
   commands.template.ts      # template command baru
@@ -164,30 +163,39 @@ Sudah **bersih** per perbaikan terakhir:
     adalah batas `yt-dlp` dan tidak bisa dihilangkan tanpa resolver persisten seperti Lavalink.
 22. ✅ **Ganti extractor kustom dengan suite `sonaria-plugins`** — `app/utils/youtube.extractor.ts` beserta seluruh
     konfigurasinya (`YtDlpPath`, `YtDlpCookies`, `YtDlpExtractorArgs`, `YtDlpPoToken`) dan instalasi `yt-dlp` di
-    Dockerfile dihapus. `MusicService` sekarang memakai extractor dari paket lokal `sonaria-plugins/`
-    (factory `applemusic()`/`deezer()`/`soundcloud()`/`spotify()`/`youtube()`, sumber Deezer, YouTube, SoundCloud,
-    Spotify dan Apple Music) — dipetakan lewat `compilerOptions.paths` di `tsconfig.json`
-    ke sumber (`src/index.ts`) sehingga tidak perlu build `dist` (folder `dist` di-*gitignore* dan tidak ikut ke deploy).
-    YouTube dijalankan dengan `downloader: "download"` (paling andal di datacenter: media diunduh `yt-dlp` ke file lokal,
-    FFmpeg membaca `file://`) dan `ytdlp.autoInstall: true` (binary `yt-dlp` diunduh otomatis saat runtime, jadi
-    Dockerfile tidak lagi meng-install-nya). Override `reconnect` FFmpeg dihapus karena stream `file://` sudah otomatis.
-    Untuk query teks, urutan plugin berarti Deezer dijawab lebih dulu lalu mirror ke YouTube/SoundCloud.
+    Dockerfile dihapus. `MusicService` sekarang memakai paket npm **`sonaria-plugins@^0.1.0`** — dipublikasikan sebagai
+    satu bundle `dist/index.js` tanpa dependency internal (`sonaria-plugin-*` tidak dirilis terpisah), jadi cukup
+    `bun add sonaria-plugins`. Factory yang dipakai: `applemusic()`/`deezer()`/`soundcloud()`/`spotify()`/`youtube()`
+    (Deezer, YouTube, SoundCloud, Spotify, Apple Music). Salinan lokal `sonaria-plugins/` **dihapus**, begitu juga
+    `compilerOptions.paths` khusus di `tsconfig.json` dan `!**/sonaria-plugins` di `biome.json`. YouTube dijalankan
+    dengan `downloader: "auto"` + `ytdlp.autoInstall: true` (binary `yt-dlp` diunduh otomatis saat runtime, jadi
+    Dockerfile tidak lagi meng-install-nya dan tidak perlu `COPY sonaria-plugins`). Override `reconnect` FFmpeg dihapus.
+    Catatan: `deezer()` hanya menerima URL tanpa `arl`; `searchSong` Deezer butuh `arl` diisi, kalau kosong query teks
+    jatuh ke plugin berikutnya yang punya `searchSong` (SoundCloud/YouTube).
 23. ✅ **Perbaikan suara & kebisingan log** — tiga temuan:
     1. **Volume default 50% → audio ~10 dB terlalu kecil.** `Queue` Sonaria mengeset `this.volume = DefaultVolume`
-       (50) saat queue dibuat, dan `volumeToMultiplier(50) = (50/100)^(0.5/log10 2) = 0.316` (≈ -10 dB). `MusicService`
-       sekarang mendengarkan `Events.InitQueue` dan memanggil `queue.setVolume(100)` (`DefaultQueueVolume`), jadi
-       multiplier = 1 (unity). Terukur: `volumedetect` mean 50% = **-26,7 dB** vs 100% = **-16,7 dB**.
+       saat queue dibuat, dan `volumeToMultiplier(50) = (50/100)^(0.5/log10 2) = 0.316` (≈ -10 dB). Terukur:
+       `volumedetect` mean 50% = **-26,7 dB** vs 100% = **-16,7 dB**. Sonaria **0.2.1** sudah menaikkan
+       `DefaultVolume` ke **100**, tapi `MusicService` tetap mendengarkan `Events.InitQueue` dan memanggil
+       `queue.setVolume(100)` (`DefaultQueueVolume`) sebagai pengaman kalau default upstream berubah lagi.
     2. **Log FFmpeg terlalu ramai.** Sonaria tidak mengeset `-loglevel`, jadi FFmpeg mencetak seluruh baris info ke stderr
        dan tiap baris diteruskan ke `logger.debug`. Ditambah `ffmpeg.args.global = { loglevel: "error" }`; sekarang
        pemutaran sukses menghasilkan **0 byte stderr**. Log FFmpeg per-baris juga hanya dikeluarkan saat `connectedLog`,
        sedangkan 30 baris terakhir tetap disimpan untuk konteks saat error.
     3. **Audio "megap-megap"/tidak konsisten.** `downloader: "auto"` mengembalikan URL `googlevideo` langsung tanpa
-       verifikasi, lalu FFmpeg menariknya sendiri; di IP datacenter stream itu di-throttle/berisi data rusak sehingga
-       suara patah-patah. Diganti ke `downloader: "download"` (yt-dlp yang mengunduh file utuh, FFmpeg baca `file://`).
+       verifikasi, lalu FFmpeg menariknya sendiri; kalau IP datacenter di-throttle/streamnya rusak, suara jadi
+       patah-patah. Kalau ini muncul lagi, ganti ke `downloader: "download"` (yt-dlp mengunduh file utuh, FFmpeg baca
+       `file://`) — trade-off-nya ada jeda unduh sebelum lagu mulai. Setelan saat ini: `"auto"`.
     4. **Bug `/skip`** — sebelumnya `queue.jump()` yang melempar (mis. `NoUpNext` saat tak ada lagu berikutnya)
        ditangkap lalu `queue.stop()`, sehingga musik/vc berhenti tanpa penjelasan. Sekarang jumlah skip di-clamp ke
        sisa lagu, tidak ada lagu berikutnya → balas `music.skip.noNext` (kunci baru di `en.ts`/`id.ts`), dan kegagalan
        lain dilaporkan ke logger + balasan `errors.loadFailed` tanpa menyentuh queue.
+24. ⚠️ **Catatan `node_modules`/cache bun** — pernah kejadian file paket hilang setelah `bun install`
+    (mis. `node_modules/seyfert/lib/builders/*.js` hilang, `node_modules/yunaforseyfert/` kosong) sehingga
+    `tsc`/`bun build` gagal resolve. Penyebabnya cache bun yang korup. Solusinya: hapus `node_modules` + `bun.lock`,
+    lalu `bun install --force --backend copyfile` dengan cache bersih (`BUN_INSTALL_CACHE_DIR` ke folder baru).
+    Cek cepat: `find node_modules/seyfert -type f | wc -l` (harus 611) dan
+    `find node_modules -type l ! -exec test -e {} \; -print` (tidak boleh ada broken symlink).
 
 ## 7. Perintah npm/bun
 

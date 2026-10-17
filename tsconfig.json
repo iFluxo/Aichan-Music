@@ -30,28 +30,7 @@
         "paths": {
             "app/*": ["./app/*"],
             "#function": ["./app/utils/function.ts"],
-            "#config": ["./assets/config.ts"],
-            "sonaria-plugins": [
-                "./sonaria-plugins/packages/sonaria-plugins/src/index"
-            ],
-            "sonaria-plugin-core": [
-                "./sonaria-plugins/packages/core/src/index"
-            ],
-            "sonaria-plugin-youtube": [
-                "./sonaria-plugins/packages/youtube/src/index"
-            ],
-            "sonaria-plugin-deezer": [
-                "./sonaria-plugins/packages/deezer/src/index"
-            ],
-            "sonaria-plugin-soundcloud": [
-                "./sonaria-plugins/packages/soundcloud/src/index"
-            ],
-            "sonaria-plugin-spotify": [
-                "./sonaria-plugins/packages/spotify/src/index"
-            ],
-            "sonaria-plugin-applemusic": [
-                "./sonaria-plugins/packages/applemusic/src/index"
-            ]
+            "#config": ["./assets/config.ts"]
         }
     },
 

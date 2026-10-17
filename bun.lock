@@ -7,7 +7,8 @@
       "dependencies": {
         "@slipher/cooldown": "^1.0.0",
         "seyfert": "^5.1.0",
-        "sonaria": "^0.2.0",
+        "sonaria": "latest",
+        "sonaria-plugins": "^0.1.0",
         "yunaforseyfert": "^1.2.4",
       },
       "devDependencies": {
@@ -53,12 +54,16 @@
 
     "seyfert": ["seyfert@5.1.0", "", {}, "sha512-FeNWUioMHeQwDnO3An+1xiV0qRcf+8INKfct8b/45OatXHEbqdAAdkbeoL+v0104MdtZPBJoUq6+QRSlM7cJsw=="],
 
-    "sonaria": ["sonaria@0.2.0", "", { "dependencies": { "@noble/ciphers": "^2.3.0", "@noble/curves": "^2.3.0", "@noble/hashes": "^2.3.0" }, "peerDependencies": { "seyfert": ">=5.0.0" } }, "sha512-Kxgyt29kBmEfwEiNtS32p2E9XAHa7m4HJw7LON5Urw61urL8KkR+AjknTb4CU4bk/KVbV3Uk140ggkVWFT5c+A=="],
+    "sonaria": ["sonaria@0.2.1", "", { "dependencies": { "@noble/ciphers": "^2.3.0", "@noble/curves": "^2.3.0", "@noble/hashes": "^2.3.0" }, "peerDependencies": { "seyfert": ">=5.0.0" } }, "sha512-b3SV3Ae/SZKX0V3miQo8c37xvq0yOTiytsXPiJNZC0/TtBhEhYMvYHDUWGXbUnyu2IQadvyEv34B1CBgzX7HSQ=="],
+
+    "sonaria-plugins": ["sonaria-plugins@0.1.0", "", { "peerDependencies": { "sonaria": ">=0" } }, "sha512-abgw/g1y4FwvbtaCVFbuke1+DU8UuaIe3j/Af2KfGEo3ahU/y1Z3FevW7nwX4HV7H7X6fr651HwlW/EiMx0e9g=="],
 
     "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
     "undici-types": ["undici-types@8.9.0", "", {}, "sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg=="],
 
     "yunaforseyfert": ["yunaforseyfert@1.2.4", "", { "peerDependencies": { "seyfert": "^5.1.0" } }, "sha512-s5rclHRAwvL3LEeLQyajrN6jPWnLq1TFVJHDepqKTPeTz7GCt+PmLFYmZ12ppUlivK2LlCb5mHt50aPB8fgFhQ=="],
+
+    "bun-types/undici-types": ["undici-types@8.12.2", "", {}, "sha512-VoMeD2O0KdHhcn+oPqOrpivN+7aDOklVSwOLD7JNjbzV1CboAFek9IFOXnreoufTUtAsCsOK0iETiERPNR/fDA=="],
   }
 }
