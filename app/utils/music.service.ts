@@ -19,10 +19,10 @@ export class MusicService {
         this.sonaria = new Sonaria(client, {
             plugins: [
                 applemusic(),
-                deezer(/*{
+                deezer({
                     arl: import.meta.env.DEEZER_ARL,
-                    masterDecryptKey: import.meta.env.DEEZER_MDK,
-                }"/"),
+                    //masterDecryptKey: import.meta.env.DEEZER_MDK,
+                ),
                 soundcloud(),
                 spotify(),
                 youtube({
