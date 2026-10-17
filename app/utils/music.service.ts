@@ -22,7 +22,7 @@ export class MusicService {
                 deezer({
                     arl: import.meta.env.DEEZER_ARL,
                     //masterDecryptKey: import.meta.env.DEEZER_MDK,
-                ),
+                }),
                 soundcloud(),
                 spotify(),
                 youtube({
