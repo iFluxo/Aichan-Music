@@ -30,10 +30,13 @@ export class MusicService {
                     ytdlp: { autoInstall: true },
                 }),
             ],
+            savePreviousSongs: true,
             emitAddSongWhenCreatingQueue: false,
             emitAddListWhenCreatingQueue: false,
+            joinNewVoiceChannel: false,
             ffmpeg: {
                 args: {
+                    input: { reconnect: 0, reconnect_streamed: 0, reconnect_delay_max: null },
                     global: { loglevel: "error" },
                 },
             },
