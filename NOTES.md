@@ -41,7 +41,7 @@ app/
     logger.ts               # customize Logger (RAM usage), global error handlers
     music.service.ts        # wrapper Sonaria + event PlaySong/AddSong/AddList/Finish/DeleteQueue/Error/Debug
     music.utils.ts          # formatTrack/formatDuration/nowPlayingEmbed/ensureVoiceChannel/requireQueue
-    youtube.extractor.ts    # ExtractorPlugin Sonaria berbasis binary yt-dlp
+sonaria-plugins/            # suite extractor lokal (core, youtube, deezer, soundcloud, spotify, applemusic)
 assets/
   config.ts                 # bot, colors, emoji
   commands.template.ts      # template command baru
@@ -134,7 +134,8 @@ Sudah **bersih** per perbaikan terakhir:
     Bot keluar dari voice channel lewat listener `DeleteQueue` (menutup semua jalur: selesai natural, error, `stop`, disconnect eksternal).
 16. ✅ **Dockerfile** — base diganti `oven/bun:1-debian` supaya FFmpeg + binary standalone `yt-dlp` bisa berjalan
     (Alpine/musl tidak bisa menjalankan binary PyInstaller yt-dlp). FFmpeg dan yt-dlp di-install saat build
-    (asset yt-dlp dipilih berdasarkan `TARGETARCH`).
+    (asset yt-dlp dipilih berdasarkan `TARGETARCH`). _(Digantikan item 22: instalasi `yt-dlp` di Dockerfile dihapus,
+    binary kini diunduh otomatis oleh plugin `sonaria-plugins` saat runtime.)_
 17. ⚠️ **Catatan**: eksekusi audio belum diuji end-to-end di environment analisa (tidak ada FFmpeg/yt-dlp/Docker).
     Verifikasi yang tersedia: `tsc` bersih, `biome` bersih, dan smoke-test pemuatan 13 command + logika `validate`/error
     extractor. Saat deploy, pastikan IP server tidak diblokir YouTube (umum terjadi di datacenter).
@@ -161,6 +162,15 @@ Sudah **bersih** per perbaikan terakhir:
     saat bot selesai connect voice, data sudah siap dan audio mulai dalam ~0,1 detik. Kalau `--load-info-json` gagal
     (mis. URL/expire ditolak), otomatis diulang dengan ekstraksi penuh. Ekstraksi metadata itu sendiri (~5-6 detik)
     adalah batas `yt-dlp` dan tidak bisa dihilangkan tanpa resolver persisten seperti Lavalink.
+22. ✅ **Ganti extractor kustom dengan suite `sonaria-plugins`** — `app/utils/youtube.extractor.ts` beserta seluruh
+    konfigurasinya (`YtDlpPath`, `YtDlpCookies`, `YtDlpExtractorArgs`, `YtDlpPoToken`) dan instalasi `yt-dlp` di
+    Dockerfile dihapus. `MusicService` sekarang memakai `sonariaPlugins()` dari paket lokal `sonaria-plugins/`
+    (Deezer, YouTube, SoundCloud, Spotify, Apple Music) — dipetakan lewat `compilerOptions.paths` di `tsconfig.json`
+    ke sumber (`src/index.ts`) sehingga tidak perlu build `dist` (folder `dist` di-*gitignore* dan tidak ikut ke deploy).
+    YouTube dijalankan dengan `downloader: "download"` (paling andal di datacenter: media diunduh `yt-dlp` ke file lokal,
+    FFmpeg membaca `file://`) dan `ytdlp.autoInstall: true` (binary `yt-dlp` diunduh otomatis saat runtime, jadi
+    Dockerfile tidak lagi meng-install-nya). Override `reconnect` FFmpeg dihapus karena stream `file://` sudah otomatis.
+    For query teks, urutan plugin berarti Deezer dijawab lebih dulu lalu mirror ke YouTube/SoundCloud.
 
 ## 7. Perintah npm/bun
 
@@ -172,13 +182,12 @@ bun run biome:check
 
 ## 8. Environment (.env)
 
-`Token, PostgresHost, PostgresPort, PostgresDatabase, PostgresUsername, PostgresPassword, RedisUrl, ConfigLocale, ConfigPrefixs, ConfigDevs, ConfigGuilds, YtDlpPath, YtDlpCookies, YtDlpExtractorArgs, YtDlpPoToken, WebhookLogUrl`
+`Token, PostgresHost, PostgresPort, PostgresDatabase, PostgresUsername, PostgresPassword, RedisUrl, ConfigLocale, ConfigPrefixs, ConfigDevs, ConfigGuilds, WebhookLogUrl`
 
 - Postgres: `PostgresHost` (default `localhost`), `PostgresPort` (default `5432`), `PostgresUsername` (default `postgres`),
   `PostgresPassword` (default kosong); hanya `PostgresDatabase` yang wajib diisi. Koneksi dibuat via options object `Bun.SQL`
   (bukan `PostgresUrl`).
-- Musik: `YtDlpPath` (path binary `yt-dlp`, default `yt-dlp` dari PATH), `YtDlpCookies` (opsional: path file cookies, atau
-  langsung isi file format Netscape — otomatis ditulis ke temp file),
-  `YtDlpExtractorArgs` (argumen `--extractor-args` tambahan, opsional), dan `YtDlpPoToken` (PO token YouTube untuk
-  `player_client=web,default`, opsional). Ketika login/bot-check YouTube mengganggu, isi `YtDlpCookies`.
-- Env `Lavalink*` sudah dihapus (tidak dipakai lagi). `GroqApiKey` hanya ada di catatan lama, tidak ada di `.env.example`.
+- Musik: extractor memakai suite `sonaria-plugins` (tanpa env khusus). Suite mengenali env standarnya sendiri bila perlu:
+  `YTDLP_PATH` (path binary `yt-dlp`), `SONARIA_YTDLP_DIR` (folder unduhan `yt-dlp`), dan opsi kredensial per-plugin
+  (mis. `DEEZER_ARL`, Spotify client) bisa ditambahkan nanti lewat opsi `sonariaPlugins()`.
+- Env `Lavalink*` dan `YtDlp*` sudah dihapus (tidak dipakai lagi). `GroqApiKey` hanya ada di catatan lama, tidak ada di `.env.example`.

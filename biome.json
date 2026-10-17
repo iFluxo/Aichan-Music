@@ -34,7 +34,8 @@
             "!**/node_modules",
             "!**/dist",
             "!**/generated",
-            "!**/cache"
+            "!**/cache",
+            "!**/sonaria-plugins"
         ]
     },
     "json": {

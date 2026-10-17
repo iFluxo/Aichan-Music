@@ -1,9 +1,9 @@
 import type { MessageCreateBodyRequest } from "seyfert/lib/common/types/write";
 import { Events, type Playlist, type Queue, Sonaria, type Song } from "sonaria";
+import { applemusic, deezer, soundcloud, spotify, youtube } from "sonaria-plugins";
 import type { Client } from "../AichanMusic";
 import { resolveLocale } from "./function";
 import { nowPlayingEmbed } from "./music.utils";
-import { YoutubeExtractor } from "./youtube.extractor";
 
 export class MusicService {
     readonly sonaria: Sonaria;
@@ -15,18 +15,18 @@ export class MusicService {
         private readonly connectedLog: boolean = false,
     ) {
         this.sonaria = new Sonaria(client, {
-            plugins: [new YoutubeExtractor()],
+            plugins: [
+                applemusic(),
+                deezer(),
+                soundcloud(),
+                spotify(),
+                youtube({
+                    downloader: "auto",
+                    ytdlp: { autoInstall: true },
+                }),
+            ],
             emitAddSongWhenCreatingQueue: false,
             emitAddListWhenCreatingQueue: false,
-            ffmpeg: {
-                args: {
-                    input: {
-                        reconnect: false,
-                        reconnect_streamed: false,
-                        reconnect_delay_max: false,
-                    },
-                },
-            },
         });
 
         this.sonaria
